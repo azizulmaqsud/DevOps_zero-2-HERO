@@ -1,0 +1,109 @@
+Create an AWS Storage Gateway-file gateway using Amazon EC2 then Mount it with Client 
+
+Project overview:
+
+	Setting Up AWS EFS for a Web Application
+
+	Deploy a Web Application with AWS EFS
+
+Introduction: 
+
+Amazon Elastic File System (EFS) is a scalable and fully managed cloud file system for Linux-based workloads. It automatically grows and shrinks as you add or remove files, providing scalable storage for applications that require a shared file system. It’s designed to work with AWS services such as EC2, Lambda, and ECS, offering shared storage that can be accessed by multiple instances simultaneously.
+Let’s implement AWS EFS with a real-time project. We'll create a shared file system for a web application hosted on multiple EC2 instances. The goal is to ensure that all instances can access the same data for the web application via EFS.
+
+Project Roadmap: 
+
+1. Create an EFS File System
+2. Launch EC2 Instances in an Auto Scaling Group
+3. Install and Configure Nginx Web Server
+4. Mount EFS on All EC2 Instances
+5. Verify File Sharing between EC2 Instances
+
+Step 1: Create an EFS File System
+
+1. Go to the AWS Management Console
+2. Navigate to the Amazon EFS service.
+3. Click Create File System
+4. Configure the EFS file system:
+   - VPC: Select the same VPC where your EC2 instances will run.
+   - Mount targets: Choose the subnets where the EC2 instances are running. EFS will create mount targets in these subnets.
+5. Choose Create File System.
+This creates a shared file system that can be mounted to multiple EC2 instances across availability zones.
+
+Step 2: Launch EC2 Instances in an Auto Scaling Group
+1. Create a Launch Template:
+   - Go to the EC2 Dashboard.
+   - Select Launch Templates > Create Launch Template.
+   - Define parameters:
+     - Amazon Machine Image (AMI): Select a Linux-based AMI (e.g., Amazon Linux 2).
+     - Instance Type: Select t2.micro (for demo purposes).
+     - Security Group: Ensure that SSH (port 22) and HTTP (port 80) are open.
+
+2. Create an Auto Scaling Group:
+   - In the EC2 Console, go to Auto Scaling Groups.
+   - Choose Create Auto Scaling Group and select the previously created launch template.
+   - Select subnets in multiple Availability Zones.
+   - Define a minimum of 2 instances to ensure high availability.
+   
+   This will automatically scale EC2 instances up or down based on traffic or usage.
+
+Step 3: Install and Configure Nginx Web Server
+On each EC2 instance, install Nginx:
+1. SSH into each instance:
+   ssh -i "your-key.pem" ec2-user/ubuntu@<instance-public-ip>
+2. Update the instance and install Nginx:
+   
+  sudo yum/apt update -y
+  
+  sudo apt install nginx
+
+  sudo systemctl start nginx
+
+  sudo systemctl enable nginx
+
+3. Verify that Nginx is running by visiting the public IP of the EC2 instance.
+
+Step 4: Mount EFS on All EC2 Instances
+
+1. Install NFS Client on each EC2 instance to mount EFS:
+
+   sudo yum/apt install -y nfs-utils
+
+2. Create a Directory to mount the EFS file system:
+
+   sudo mkdir /mnt/efs
+
+3. Mount the EFS File System:
+   - Go to the EFS dashboard.
+   - Under File Systems, select your EFS.
+   - Click on Attach and copy the mount command (make sure it uses NFS).
+   - On each EC2 instance, run the mount command (adjust `<fs-id>` and region as needed):
+     sudo mount -t nfs4 <fs-id>.efs.<region>.amazonaws.com:/ /mnt/efs
+   - Ensure the EFS file system is mounted by running:
+     df -h
+     You should see the EFS mounted on `/mnt/efs`.
+
+4. Make the Mount Persistent (Optional):
+   - Edit `/etc/fstab` to automatically mount EFS after a reboot:
+     echo "<fs-id>.efs.<region>.amazonaws.com:/ /mnt/efs nfs4 defaults,_netdev 0 0" | sudo tee -a /etc/fstab
+
+Step 5: Verify File Sharing between EC2 Instances
+
+1. Create a Test File on one of the EC2 instances in the mounted EFS directory:
+   -echo "Hello from EFS" | sudo tee /mnt/efs/testfile.txt
+2. Verify File Replication by checking the same directory on the other EC2 instance:
+   -cat /mnt/efs/testfile.txt
+ 
+You should see the same content, confirming that both instances are sharing files through EFS.
+
+# Conclusion
+
+By following these steps, you've successfully set up a real-time project where multiple EC2 instances can share a file system using AWS EFS. This architecture can be used in real-world applications like shared file storage for web applications, CMS, or distributed workloads.
+
+# Additional Enhancements
+
+- Auto Scaling: You can implement Auto Scaling based on load and traffic.
+- Data Backup: Enable EFS backups for additional data protection.
+- Security: Integrate EFS with AWS Identity and Access Management (IAM) and use security groups to restrict access.
+
+
