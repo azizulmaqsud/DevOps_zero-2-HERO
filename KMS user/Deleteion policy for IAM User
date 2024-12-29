@@ -1,0 +1,24 @@
+{
+	"Version": "2012-10-17",
+	"Id": "KeyPolicy",
+	"Statement": [
+		{
+			"Sid": "AllowRootUserFullControl",
+			"Effect": "Allow",
+			"Principal": {
+				"AWS": "arn:aws:iam::<your-aws-account-number>:root"
+			},
+			"Action": "kms:*",
+			"Resource": "*"
+		},
+		{
+			"Sid": "AllowIAMUserScheduleKeyDeletion",
+			"Effect": "Allow",
+			"Principal": {
+				"AWS": "arn:aws:iam::<your-aws-account-number>:user/kms_key_recovery_0e2a2f5d-f59a-4de0-8c85-cec0005f2c76"
+			},
+			"Action": "kms:ScheduleKeyDeletion",
+			"Resource": "arn:aws:kms:us-east-1:<your-aws-account-number>:key/0e2a2f5d-f59a-4de0-8c85-cec0005f2c76"
+		}
+	]
+}
