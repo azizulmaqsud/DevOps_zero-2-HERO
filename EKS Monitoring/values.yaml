@@ -1,0 +1,32 @@
+adminUser: "admin"
+adminPassword: "grafana-pass"
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-server.monitoring.svc.cluster.local
+      access: proxy
+      isDefault: true
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      options:
+        path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    kubernetes-cluster:
+      json: |
+        {
+          "annotations": {...},
+          "panels": [...]
+        }
