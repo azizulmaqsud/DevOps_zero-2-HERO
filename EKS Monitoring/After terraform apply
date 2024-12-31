@@ -1,0 +1,91 @@
+terraform apply -auto-approve
+________________________________________
+Step 2: Configure Prometheus and Grafana Using Helm
+2.1 Add Prometheus and Grafana Helm Repositories
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+2.2 Create a Namespace for Monitoring
+kubectl create namespace monitoring
+
+2.3 Custom values.yaml for Prometheus
+alertmanager:
+  enabled: true
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    resources:
+      requests:
+        memory: 400Mi
+        cpu: 100m
+________________________________________
+2.4 Install Prometheus
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --values values.yaml
+________________________________________
+2.5 Custom values.yaml for Grafana
+adminUser: "admin"
+adminPassword: "grafana-pass"
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-server.monitoring.svc.cluster.local
+      access: proxy
+      isDefault: true
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      options:
+        path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    kubernetes-cluster:
+      json: |
+        {
+          "annotations": {...},
+          "panels": [...]
+        }
+________________________________________
+2.6 Install Grafana
+helm install grafana grafana/grafana \
+  --namespace monitoring \
+  --values values.yaml
+________________________________________
+Step 3: Expose Grafana and Prometheus
+3.1 Expose Prometheus Using a LoadBalancer
+kubectl edit svc prometheus-kube-prometheus-prometheus -n monitoring
+Change type to LoadBalancer.
+________________________________________
+3.2 Expose Grafana Using a LoadBalancer
+kubectl edit svc grafana -n monitoring
+Change type to LoadBalancer.
+________________________________________
+Step 4: Access Monitoring Tools
+1.	Get the LoadBalancer URLs:
+kubectl get svc -n monitoring
+2.	Access Grafana using the username admin and the password grafana-pass.
+________________________________________
+Step 5: Import Kubernetes Monitoring Dashboard
+1.	In Grafana, go to Dashboard > Import.
+2.	Use a pre-built dashboard JSON, such as Kubernetes Cluster Monitoring.
+________________________________________
+Project Outcomes
+1.	Prometheus: Collects cluster and application metrics.
+2.	Grafana: Visualizes metrics with custom dashboards.
+3.	EKS Integration: Monitors pods, services, and nodes seamlessly.
+
