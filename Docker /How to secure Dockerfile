@@ -1,0 +1,163 @@
+How To Write a Secured Dockerfile?
+Key points: 
+1.	Use Minimal Base Images
+2.	Add a Non-Root User
+3.	Use COPY Instead of ADD
+4.	Set Working Directory
+5.	Install Only Necessary Dependencies
+6.	Remove Build Dependencies
+7.	Set File and Directory Permissions
+8.	Use Multi-Stage Builds
+9.	Set Environment Variables Securely
+10.	Minimize Image Layers
+11.	Use Health Checks
+12.	Use a Read-Only File System
+13.	Avoid Exposing Unnecessary Ports
+14.	Use Default seccomp or AppArmor Profiles
+15.	Avoid ARGs for Sensitive Information
+A secured Dockerfile is designed with best practices to minimize vulnerabilities, enforce security, and ensure that the resulting Docker container is robust and resistant to attacks. Below is a detailed breakdown of the components of a secured Dockerfile with examples:
+
+In Detail:
+1. Use Minimal Base Images
+•	Start with a lightweight and trusted base image like Alpine or a specific version of an official image.
+•	Avoid unnecessary tools or libraries to reduce the attack surface.
+Example:
+FROM python:3.9-slim
+________________________________________
+2. Add a Non-Root User
+•	Containers run as root by default, which is a major security risk.
+•	Create and switch to a non-root user to minimize privileges.
+Example:
+# Create a non-root user
+RUN useradd -m flaskuser
+
+# Switch to the non-root user
+USER flaskuser
+________________________________________
+3. Use COPY Instead of ADD
+•	Use COPY for adding files into the image because it's more predictable than ADD.
+•	Only use ADD when extracting tar archives or downloading files from a URL.
+Example:
+# Copy the application code
+COPY app.py /app/
+________________________________________
+4. Set Working Directory
+•	Specify a working directory for the container to avoid running commands from the root directory.
+Example:
+WORKDIR /app
+________________________________________
+5. Install Only Necessary Dependencies
+•	Minimize the number of tools and libraries installed.
+•	Use --no-install-recommends to avoid unnecessary dependencies.
+Example:
+# Install only required Python dependencies
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+________________________________________
+6. Remove Build Dependencies
+•	Remove tools or libraries used only during the build stage to reduce the attack surface.
+Example:
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get purge -y gcc python3-dev && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+________________________________________
+7. Set File and Directory Permissions
+•	Restrict file and directory access to minimize risks.
+Example:
+# Ensure the application code is owned by the non-root user
+RUN chown -R flaskuser:flaskuser /app
+________________________________________
+8. Use Multi-Stage Builds
+•	Build the application in one stage and copy only the necessary files into the final image to reduce image size and include only production-ready files.
+Example:
+# Stage 1: Build
+FROM python:3.9-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Final
+FROM python:3.9-alpine
+WORKDIR /app
+COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY app.py .
+USER nobody
+CMD ["python", "app.py"]
+________________________________________
+9. Set Environment Variables Securely
+•	Avoid hardcoding sensitive information. Use environment variables to inject configurations.
+Example:
+ENV APP_ENV=production
+________________________________________
+10. Minimize Image Layers
+•	Combine commands into fewer layers to make the image smaller and reduce the attack surface.
+Example:
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+________________________________________
+11. Use Health Checks
+•	Add a health check to monitor the container's runtime health.
+Example:
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD curl -f http://localhost:5000/ || exit 1
+________________________________________
+12. Use a Read-Only File System
+•	Avoid writable layers unless absolutely necessary. Configure this during runtime (docker run).
+________________________________________
+13. Avoid Exposing Unnecessary Ports
+•	Expose only the required ports for your application.
+Example:
+EXPOSE 5000
+________________________________________
+14. Use Default seccomp or AppArmor Profiles
+•	The Docker engine applies a default seccomp profile, but you can also enforce a custom AppArmor or seccomp profile during runtime.
+________________________________________
+15. Avoid ARGs for Sensitive Information
+•	ARG values are stored in the image and can be accessed. Use ENV for runtime configuration instead of sensitive ARG values.
+________________________________________
+Example of a Complete Secured Dockerfile
+# Use a lightweight base image
+FROM python:3.9-slim
+
+# Create a non-root user
+RUN useradd -m flaskuser
+
+# Set the working directory
+WORKDIR /app
+
+# Copy files and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code
+COPY app.py .
+
+# Ensure the application code is owned by the non-root user
+RUN chown -R flaskuser:flaskuser /app
+
+# Switch to the non-root user
+USER flaskuser
+
+# Expose the required port
+EXPOSE 5000
+
+# Add a health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD curl -f http://localhost:5000/ || exit 1
+
+# Set the entry point
+CMD ["python", "app.py"]
+________________________________________
+Summary
+This secured Dockerfile incorporates:
+1.	Minimal base images.
+2.	Non-root users.
+3.	Controlled file and directory permissions.
+4.	Multi-stage builds.
+5.	Vulnerability mitigation through minimal dependencies.
+6.	Health checks for runtime monitoring.
+Using these principles ensures that the container is both secure and lightweight, adhering to best practices for production deployments.
+
