@@ -1,0 +1,216 @@
+Mastering Real-Time E-Commerce 
+Sales Data Analytics with 
+AWS Glue, S3, Athena, Kinesis & Quicksight 
+
+Step 1: Create the S3 Data Lake
+1. Create an S3 Bucket:
+•	Open the S3 Console.
+•	Click "Create Bucket."
+•	Name it ecommerce-data-lake.
+•	Enable Versioning.
+•	Click "Create Bucket."
+2. Organize Folders:
+•	Inside the bucket, create the following folders:
+o	raw/ (for raw data from Kinesis Firehose).
+o	processed/ (for processed data from Glue).
+o	athena-results/ (for Athena query results).
+
+Step 2: Set Up Kinesis Firehose for Real-Time Data Ingestion
+1. Create a Kinesis Firehose Delivery Stream:
+•	Go to the Kinesis Console.
+•	Click "Create Delivery Stream."
+•	Name: ecommerce-firehose.
+•	Source: Select "Direct PUT."
+•	Destination: Choose Amazon S3.
+o	Select the S3 bucket (ecommerce-data-lake) and the raw/ folder.
+•	Enable Data Transformation:
+o	Choose "Create a new Lambda function" (or select an existing function).
+o	Use the Lambda function for validating and processing records.
+•	Enable Data Compression (GZIP or Snappy).
+•	Click "Create Delivery Stream."
+
+Step 3: Simulate Real-Time Data
+1. Generate Test Data:
+•	Use the following Python script to send test data to Firehose:
+import boto3
+import json
+from datetime import datetime
+import random
+firehose = boto3.client('firehose', region_name='us-east-1')
+def send_data():
+    product_names = ['Laptop', 'Headphones', 'Monitor', 'Keyboard', 'Mouse']
+    regions = ['North America', 'Europe', 'Asia']
+    for _ in range(100):
+        record = {
+            "order_id": str(random.randint(1000, 9999)),
+            "product_name": random.choice(product_names),
+            "quantity": random.randint(1, 10),
+            "price": round(random.uniform(20.0, 500.0), 2),
+            "region": random.choice(regions),
+            "order_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        firehose.put_record(
+            DeliveryStreamName='ecommerce-firehose',
+            Record={'Data': json.dumps(record) + '\n'}
+        )
+
+send_data()
+
+
+
+Step 4: Configure AWS Glue for Data Processing
+1. Create a Glue Database:
+•	Go to the Glue Console.
+•	Click "Databases" > "Add Database."
+•	Name: ecommerce_db.
+2. Set Up a Glue Crawler:
+•	Go to Crawlers > "Add Crawler."
+•	Name: raw-data-crawler.
+•	Data Source: Select S3 and point to the raw/ folder in your bucket.
+•	Output: Choose the database ecommerce_db.
+•	Run the crawler to catalog raw data.
+3. Create a Glue Job:
+•	Go to Jobs > "Add Job."
+•	Name: ecommerce-transform-job.
+•	IAM Role: Select an existing role or create a new one with Glue permissions.
+•	Script Location: Provide a script for transformation (or use the visual editor).
+•	Input: Select the table created by the crawler.
+•	Output: Choose the processed/ folder in your bucket.
+Step 5: Query Data with Amazon Athena
+1. Configure Athena:
+•	Go to the Athena Console.
+•	Click "Settings."
+•	Specify query result location: s3://ecommerce-data-lake/athena-results/.
+2. Create a Table:
+•	Run the following query to create a table for the processed data:
+CREATE EXTERNAL TABLE ecommerce_sales (
+    order_id STRING,
+    product_name STRING,
+    quantity INT,
+    price FLOAT,
+    region STRING,
+    order_date TIMESTAMP,
+    total_price FLOAT
+)
+STORED AS PARQUET
+LOCATION 's3://ecommerce-data-lake/processed/';
+3. Analyze Data:
+•	Example query:
+SELECT region, SUM(total_price) AS revenue
+FROM ecommerce_sales
+GROUP BY region;
+Step 6: Visualize Data with Amazon QuickSight
+1. Set Up QuickSight:
+•	Go to the QuickSight Console.
+•	Configure QuickSight permissions to access Athena and S3.
+•	Create a dataset by connecting to Athena.
+2. Build Dashboards:
+•	Create visualizations such as bar charts (e.g., revenue by region) and line charts (e.g., sales trends).
+Step 7: Automate Workflow with AWS Step Functions
+1. Create an SNS Topic:
+•	Go to the SNS Console > "Create Topic."
+•	Name: ecommerce-notifications.
+•	Subscribe with your email or phone for notifications.
+2. Set Up Step Functions:
+•	Go to the Step Functions Console > "Create State Machine."
+•	Define a workflow with the following steps:
+o	Trigger Glue Crawler.
+o	Run Glue Job.
+o	Notify via SNS.
+•	Add error handling and retries for Glue tasks.
+Example Workflow JSON:
+{
+  "StartAt": "Run Glue Crawler",
+  "States": {
+    "Run Glue Crawler": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startCrawler",
+      "Parameters": {
+        "Name": "raw-data-crawler"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Glue.CrawlerException"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3
+        }
+      ],
+      "Next": "Run Glue Job"
+    },
+    "Run Glue Job": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "ecommerce-transform-job"
+      },
+      "Next": "Notify"
+    },
+    "Notify": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:ecommerce-notifications",
+        "Message": "Data pipeline completed successfully."
+      },
+      "End": true
+    }
+  }
+}
+
+Step 8: Enable Real-Time Updates
+1. Use Kinesis Firehose:
+•	Ensure the Firehose delivery stream is continuously streaming data to the raw/ folder in S3.
+2. Incremental Glue Job:
+•	Modify the Glue job to process only new data using Glue bookmarks:
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+
+## Initialize the Glue context
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+## Reading data from S3 with Glue Bookmarks
+datasource0 = glueContext.create_dynamic_frame.from_catalog(
+    database = "ecommerce_db",
+    table_name = "raw_data",
+    transformation_ctx = "datasource0"
+)
+
+## Process and transform data
+applymapping1 = ApplyMapping.apply(
+    frame = datasource0,
+    mappings = [
+        ("order_id", "string", "order_id", "string"),
+        ("product_name", "string", "product_name", "string"),
+        ("quantity", "int", "quantity", "int"),
+        ("price", "float", "price", "float"),
+        ("region", "string", "region", "string"),
+        ("order_date", "string", "order_date", "timestamp"),
+        ("total_price", "float", "total_price", "float")
+    ],
+    transformation_ctx = "applymapping1"
+)
+
+## Writing transformed data to S3
+datasink2 = glueContext.write_dynamic_frame.from_options(
+    frame = applymapping1,
+    connection_type = "s3",
+    connection_options = {"path": "s3://ecommerce-data-lake/processed/"},
+    format = "parquet",
+    transformation_ctx = "datasink2"
+)
+
+## Commit the job
+job.commit()
+3. Schedule the Glue Job:
+•	Create a Schedule to run the Glue job at regular intervals (e.g., every hour) to ensure that new data is processed continuously.
+•	Navigate to the Triggers Section in the Glue console and add a new trigger for your job, setting the frequency as needed.
+
