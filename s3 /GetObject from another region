@@ -1,0 +1,83 @@
+Day2day AWS Activities: Mini Project
+Copy All Objects from One S3 Bucket to Another Across AWS Regions
+________________________________________
+Objective
+Create an automated solution to copy all objects from a source S3 bucket in one AWS region to a destination S3 bucket in another region using the AWS CLI and additional services.
+________________________________________
+Steps to Complete the Project
+1. Prerequisites
+•	AWS account with required permissions:
+o	s3:GetObject and s3:ListBucket for the source bucket.
+o	s3:PutObject for the destination bucket.
+•	AWS CLI installed and configured with credentials.
+________________________________________
+
+2. Configure Source and Destination Buckets
+1.	Source Bucket Permissions:
+o	Add a bucket policy to allow your IAM user/role to read objects:
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+      },
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::source-bucket-name",
+        "arn:aws:s3:::source-bucket-name/*"
+      ]
+    }
+  ]
+}
+2.	Destination Bucket Permissions:
+o	Add a bucket policy to allow write access:
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+      },
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::destination-bucket-name/*"
+    }
+  ]
+}
+________________________________________
+3. Copy Objects Using the AWS CLI
+1.	Use the sync command to copy all objects from the source bucket to the destination bucket:
+aws s3 sync s3://source-bucket-name s3://destination-bucket-name --source-region us-east-1 --region us-west-2
+o	Replace source-bucket-name and destination-bucket-name with your bucket names.
+o	Replace us-east-1 and us-west-2 with the respective regions.
+________________________________________
+4. Automate Using a Lambda Function (Optional)
+1.	Create a Lambda Function:
+o	Write a Python function using Boto3 to automate the copy process:
+import boto3
+
+def lambda_handler(event, context):
+    s3 = boto3.client('s3')
+    source_bucket = 'source-bucket-name'
+    destination_bucket = 'destination-bucket-name'
+
+    response = s3.list_objects_v2(Bucket=source_bucket)
+    for obj in response.get('Contents', []):
+        copy_source = {'Bucket': source_bucket, 'Key': obj['Key']}
+        s3.copy_object(CopySource=copy_source, Bucket=destination_bucket, Key=obj['Key'])
+
+    return {"status": "Completed"}
+2.	Deploy Lambda:
+o	Attach an IAM role with s3:GetObject, s3:ListBucket, and s3:PutObject permissions.
+o	Trigger the function using an event or a scheduled CloudWatch rule.
+________________________________________
+5. Monitor the Copy Process
+•	Enable CloudWatch Logs for the CLI or Lambda function.
+•	Set up CloudWatch Alarms to notify if there are errors or high latencies.
+________________________________________
+6. Validate the Copy
+•	Verify the destination bucket contains all the source bucket's objects using:
+aws s3 ls s3://destination-bucket-name
+
