@@ -1,0 +1,137 @@
+AWS Mega-Project:
+Three-Tier Application Deployment with VPC, Nginx, Load Balancers (ALB + NLB), 
+Auto-Scaling, and RDS
+________________________________________
+1. Create VPC and Networking Infrastructure
+1.	Set up VPC with 6 subnets:
+o	Create a VPC with a CIDR block (e.g., 10.0.0.0/16).
+o	Add 2 public subnets for the bastion server and ALB.
+o	Add 2 private subnets for the backend servers.
+o	Add 2 private subnets for the database servers.
+o	Allocate IP ranges:
+	Public subnets: 10.0.1.0/24, 10.0.2.0/24.
+	Private subnets (backend): 10.0.3.0/24, 10.0.4.0/24.
+	Private subnets (database): 10.0.5.0/24, 10.0.6.0/24.
+2.	Route Tables:
+o	Public route table: Associate it with public subnets and configure routes to the Internet Gateway (IGW).
+o	Private route tables: Associate them with private subnets and configure routes through the NAT Gateway.
+3.	Internet Gateway (IGW):
+o	Attach an IGW to the VPC for public internet access.
+4.	NAT Gateway:
+o	Create a NAT Gateway in a public subnet to allow instances in private subnets to access the internet.
+________________________________________
+2. Provision EC2 Instances
+1.	Create 4 EC2 servers:
+o	Bastion server: Place it in a public subnet to manage private instances via SSH.
+o	Backend server: Place it in one of the private backend subnets.
+o	Frontend server: Place it in one of the private frontend subnets.
+o	Database server: Place it in one of the private database subnets.
+2.	Security Groups:
+o	Bastion server: Allow SSH (port 22) from your IP.
+o	Backend server: Allow traffic only from the NLB and allow outbound access to the database.
+o	Frontend server: Allow traffic only from the ALB.
+o	Database server: Allow inbound traffic on port 3306 (MySQL) or 5432 (PostgreSQL) from backend servers only.
+________________________________________
+3. Configure the Database Server
+1.	Install Database:
+o	On the database server, install MySQL or PostgreSQL:
+sudo apt update
+sudo apt install -y mysql-server
+2.	Set up Database:
+o	Create a database, tables, and users.
+o	Grant access to the backend servers.
+3.	Secure the Database:
+o	Configure bind-address in MySQL to allow access from backend servers only.
+________________________________________
+4. Deploy Backend Application
+1.	Prepare the Backend Server:
+o	Install required software (e.g., Python, Node.js, or Java):
+sudo apt update
+sudo apt install -y nodejs npm
+2.	Deploy Application:
+o	Clone your backend application repository.
+git clone <repository-url>
+cd <repository-directory>
+npm install
+o	Start the application on a specific port (e.g., 8080).
+3.	Configure Environment Variables:
+o	Add database credentials and other configurations.
+________________________________________
+5. Deploy Frontend Application
+1.	Prepare the Frontend Server:
+o	Install Nginx:
+sudo apt update
+sudo apt install -y nginx
+2.	Deploy Application:
+o	Copy frontend files to /var/www/html or your preferred directory.
+o	Update Nginx configuration to serve the frontend:
+sudo nano /etc/nginx/sites-available/default
+Configure the root and index:
+server {
+    listen 80;
+    server_name _;
+    root /var/www/html;
+    index index.html;
+}
+o	Restart Nginx:
+sudo systemctl restart nginx
+________________________________________
+6. Configure Load Balancers
+1.	Network Load Balancer (NLB) for Backend Servers:
+o	Create an NLB and attach it to the private backend subnets.
+o	Add a listener for TCP traffic (e.g., port 8080).
+o	Register backend servers as targets.
+2.	Application Load Balancer (ALB) for Frontend Servers:
+o	Create an ALB and attach it to the public subnets.
+o	Add a listener for HTTP traffic (port 80 or 443 with SSL/TLS).
+o	Register frontend servers as targets.
+________________________________________
+7. Create Auto Scaling Groups
+1.	Frontend Auto Scaling Group:
+o	Create a custom AMI of the frontend server.
+o	Use the AMI to create an Auto Scaling Group (ASG).
+o	Attach the ALB as the target group.
+o	Configure scaling policies based on CPU or memory usage.
+2.	Backend Auto Scaling Group:
+o	Create a custom AMI of the backend server.
+o	Use the AMI to create an Auto Scaling Group (ASG).
+o	Attach the NLB as the target group.
+o	Configure scaling policies.
+________________________________________
+8. Migrate to RDS
+1.	Create RDS Instance:
+o	Use the AWS Console or CLI to create an RDS instance (MySQL/PostgreSQL).
+o	Configure subnet groups to use private subnets.
+2.	Import Data:
+o	Export data from the local database:
+mysqldump -u <user> -p <database> > dump.sql
+o	Import data into RDS:
+mysql -h <RDS-endpoint> -u <user> -p <database> < dump.sql
+3.	Update Backend Application:
+o	Update the backend configuration to use the RDS endpoint.
+________________________________________
+9. Automate Backend Deployment
+1.	Write a Deployment Script:
+o	Create a shell script to automate backend application deployment and updates:
+#!/bin/bash
+cd /path/to/app
+git pull origin main
+npm install
+pm2 restart app
+o	Schedule it with Cron.
+________________________________________
+10. Final Validation
+1.	Stress Test Frontend and Backend:
+o	Use tools like Apache Benchmark or Siege to generate traffic.
+2.	Verify Load Balancer and Auto Scaling:
+o	Confirm that the ALB and NLB distribute traffic correctly.
+o	Check Auto Scaling policies to ensure proper scaling.
+3.	Access Application:
+o	Use the ALB DNS name to access the frontend.
+o	Confirm functionality and database integration.
+________________________________________
+Deployment Result
+•	Frontend: Accessible via ALB.
+•	Backend: Scaled and distributed via NLB.
+•	Database: Hosted in RDS and accessible to the backend.
+
