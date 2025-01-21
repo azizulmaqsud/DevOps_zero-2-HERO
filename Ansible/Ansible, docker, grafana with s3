@@ -1,0 +1,201 @@
+Linux with AWS Project
+Real-Time Log Monitoring, Visualization, and Multi-Server Deployment with Ansible, Docker, Grafana, and AWS S3 Integration
+________________________________________
+Enhanced Project Objective:
+Expand the basic log monitoring system to:
+1.	Visualize Logs: Integrate with Grafana for log visualization.
+2.	Multi-Server Deployment: Use Ansible and Docker to deploy the system across multiple servers.
+3.	Long-Term Log Storage: Integrate with AWS S3 to back up archived logs.
+________________________________________
+Enhanced Project Components:
+1.	Log Monitoring: Use shell scripts for error detection, archiving, and compression.
+2.	Log Visualization: Use Grafana with Promtail (Loki) to visualize logs.
+3.	Multi-Server Deployment: Automate deployment with Ansible and containerize with Docker.
+4.	Long-Term Storage: Upload archived logs to AWS S3.
+5.	Infrastructure: Use multiple servers for scalability.
+________________________________________
+Complete Workflow
+________________________________________
+Step 1: Initial Setup
+
+sudo apt update && sudo apt -y full-upgrade
+Aws cli installation https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html 
+sudo apt install unzip
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+rm -rf aws awscliv2.zip
+Go to IAM console… Add users > name user > Next > AdministratorAccess policy attach > Next > Create user 
+aws configure
+ aws s3 ls
+
+install Ansible
+sudo apt update && sudo apt -y full-upgrade
+sudo apt-get install software-properties-common -y
+sudo add-apt-repository --yes --update ppa:ansible/ansible
+sudo apt install python3-pip
+sudo apt install python3-boto3
+sudo apt install ansible-core
+sudo apt-get install ansible -y
+ansible --version
+
+vim ~/.bashrc
+export PATH=$PATH:/home/ubuntu/.local/bin
+exit
+R
+
+Create the project structure:
+mkdir -p ~/log_monitoring/{logs,archives,reports,scripts}
+cd ~/log_monitoring
+•	Simulate log generation:
+echo "2025-01-19 INFO User logged in" > logs/server.log
+echo "2025-01-19 ERROR Disk space low" >> logs/server.log
+________________________________________
+Step 2: Log Monitoring (Shell Script)
+Monitor logs, archive, and notify errors:
+1.	Create a script log_monitor.sh:
+vim scripts/log_monitor.sh
+Content:
+#!/bin/bash
+LOG_FILE="logs/server.log"
+ERROR_FILE="logs/errors.log"
+REPORT_FILE="reports/log_report_$(date +%F).txt"
+ARCHIVE_DIR="archives"
+ALERT_EMAIL="admin@example.com"
+AWS_BUCKET="s3://my-log-bucket"
+
+# Monitor for critical errors and extract them
+grep "ERROR" $LOG_FILE > $ERROR_FILE
+
+# If errors exist, send an alert email
+if [ -s $ERROR_FILE ]; then
+    echo "Critical errors detected in the log file on $(date)." | mailx -s "Critical Error Alert" -a $ERROR_FILE $ALERT_EMAIL
+fi
+
+# Archive logs daily
+TIMESTAMP=$(date +%F)
+tar -czf $ARCHIVE_DIR/logs_$TIMESTAMP.tar.gz $LOG_FILE
+
+# Clear logs after archiving
+> $LOG_FILE
+
+# Upload archived logs to AWS S3
+aws s3 cp $ARCHIVE_DIR/logs_$TIMESTAMP.tar.gz $AWS_BUCKET
+2.	Make the script executable:
+chmod +x scripts/log_monitor.sh
+3.	Automate the script with a cron job:
+crontab -e
+Add:
+0 0 * * * /bin/bash ~/log_monitoring/scripts/log_monitor.sh
+________________________________________
+Step 3: Grafana Integration
+1.	Install Promtail and Loki:
+o	Install Promtail to collect logs and send them to Loki:
+docker run --name=promtail -d \
+  -v ~/log_monitoring/logs:/var/log \
+  -v /etc/promtail-config.yaml:/etc/promtail-config.yaml \
+  grafana/promtail:latest
+o	Loki (log aggregation backend):
+docker run --name=loki -d \
+  -p 3100:3100 \
+  -v ~/loki-data:/etc/loki \
+  grafana/loki:latest
+2.	Grafana Setup:
+o	Install Grafana:
+docker run --name=grafana -d -p 3000:3000 grafana/grafana:latest
+o	Access Grafana at http://<server-ip>:3000 and configure Loki as a data source.
+o	Create dashboards to visualize logs with custom panels for error rates, log patterns, etc.
+________________________________________
+Step 4: Multi-Server Deployment with Ansible and Docker
+
+Vim hosts
+[server]
+3.93.145.127 ansible_user=ubuntu ansible_ssh_private_key_file=/path/to/default.pem
+
+Vim ansible.cfg
+[defaults]
+inventory = hosts
+host_key_checking = False
+
+test connection
+ansible -i hosts all -m ping
+
+1.	Create an Ansible Playbook:
+vim deploy_log_monitoring.yml
+Content:
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Create log monitoring directory
+      file:
+        path: /opt/log_monitoring
+        state: directory
+
+    - name: Copy monitoring scripts
+      copy:
+        src: ~/log_monitoring/scripts/
+        dest: /opt/log_monitoring/scripts/
+        mode: 0755
+
+    - name: Deploy Grafana container
+      docker_container:
+        name: grafana
+        image: grafana/grafana:latest
+        state: started
+        ports:
+          - "3000:3000"
+
+    - name: Deploy Loki container
+      docker_container:
+        name: loki
+        image: grafana/loki:latest
+        state: started
+        ports:
+          - "3100:3100"
+2.	Run the playbook:
+ansible-playbook  deploy_log_monitoring.yml
+________________________________________
+Step 5: Integrate AWS S3 for Log Storage
+1.	Create an S3 bucket:
+aws s3 mb s3://my-log-bucket
+2.	Configure AWS CLI:
+aws configure
+3.	Archive Logs and Upload to S3: Modify log_monitor.sh to include:
+Verify the Logs Directory:
+ls /home/ubuntu/log_monitoring/logs
+Run the Script with Debugging: Add set -x at the beginning of the script to enable debugging:
+#!/bin/bash
+set -x
+Manually Test the tar Command: Run the following command to ensure it works:
+tar -czf /home/ubuntu/log_monitoring/logs/logs_test.tar.gz -C /home/ubuntu/log_monitoring/logs .
+ls /home/ubuntu/log_monitoring/logs/logs_test.tar.gz
+Manually Test the S3 Upload: Replace variables with actual paths and bucket names:
+aws s3 cp /home/ubuntu/log_monitoring/logs/logs_test.tar.gz s3://my-log-bucket-ohio
+If this fails, check your AWS CLI configuration or IAM permissions.
+
+________________________________________
+Step 6: Testing the System
+1.	Simulate log generation:
+while true; do
+    echo "$(date) INFO User logged in" >> logs/server.log
+    echo "$(date) ERROR Disk space low" >> logs/server.log
+    sleep 5
+done
+2.	Verify:
+o	Logs are visible in Grafana.
+o	Archived logs are uploaded to S3.
+o	Reports are generated, and alerts are sent.
+________________________________________
+Deliverables:
+1.	Scripts: Includes log_monitor.sh, log_archive.sh, and Ansible playbooks.
+2.	Grafana Dashboards: Visualize log patterns and error occurrences.
+3.	Archived Logs: Stored in AWS S3.
+4.	Deployed System: Multiple servers running the monitoring system with Ansible and Docker.
+
