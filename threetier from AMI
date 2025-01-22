@@ -1,0 +1,114 @@
+Full Stack Deployment with AMI (Amazon Machine Image): Flask, React, MySQL & ALB on AWS 
+With
+Troubleshooting
+
+1. Project Architecture
+•	Frontend (React): React app deployed on an EC2 instance behind an ALB (for user traffic).
+•	Backend (Flask): Flask API running on EC2 instances behind an ALB.
+•	Database (MySQL): MySQL database on a standalone EC2 instance or managed service like Amazon RDS.
+•	AMI: Pre-configured images for frontend and backend EC2 instances for easy scaling and deployment.
+
+
+
+________________________________________
+2. Detailed Roadmap
+________________________________________
+Phase 1: Environment Setup
+Frontend Setup (React)
+1.	Launch an EC2 instance with the required OS (e.g., Ubuntu 20.04).
+2.	Install Node.js and npm:
+sudo apt update
+sudo apt install nodejs npm -y
+3.	Clone or create your React app:
+git clone <your-react-repo>
+cd <react-app-folder>
+4.	Build the React app:
+npm install
+npm run build
+5.	Serve the React app using nginx or serve:
+npm install -g serve
+serve -s build
+6.	Test the app locally by accessing the instance's public IP.
+Backend Setup (Flask)
+1.	Launch an EC2 instance and install Python:
+sudo apt update
+sudo apt install python3 python3-pip -y
+2.	Clone or create your Flask app:
+git clone <your-flask-repo>
+cd <flask-app-folder>
+3.	Install dependencies:
+pip3 install -r requirements.txt
+4.	Run the Flask app:
+python3 app.py
+5.	Test the API locally.
+Database Setup (MySQL)
+1.	Launch an EC2 instance or create an Amazon RDS instance.
+2.	Install MySQL on an EC2 instance:
+sudo apt update
+sudo apt install mysql-server -y
+3.	Configure MySQL:
+o	Create a database and user for your application.
+o	Grant necessary privileges:
+CREATE DATABASE myappdb;
+CREATE USER 'myappuser'@'%' IDENTIFIED BY 'password';
+GRANT ALL PRIVILEGES ON myappdb.* TO 'myappuser'@'%';
+4.	Update the Flask app to use the MySQL database.
+Create AMIs for Frontend and Backend
+1.	Stop the instances after testing.
+2.	Create AMIs from the instances for frontend and backend.
+________________________________________
+Phase 2: Deploy Instances from AMIs
+1.	Launch EC2 instances using the AMIs for both frontend and backend.
+2.	Configure necessary Security Groups:
+o	Frontend ALB: Allow HTTP (80) and HTTPS (443).
+o	Backend ALB: Allow communication only from the frontend or specific IPs.
+o	MySQL: Allow communication only from the backend.
+________________________________________
+Phase 3: Configure ALBs for Frontend and Backend
+Frontend ALB
+1.	Create an ALB in the AWS Management Console:
+o	Choose internet-facing.
+o	Add listener for port 80.
+o	Attach a target group for the frontend EC2 instances.
+2.	Register the frontend EC2 instances to the target group.
+3.	Test the ALB URL to ensure the React app is accessible.
+Backend ALB
+1.	Create another ALB for the backend:
+o	Choose internal-facing for communication within the VPC.
+o	Add listener for port 80.
+o	Attach a target group for the backend EC2 instances.
+2.	Register the backend EC2 instances to the target group.
+3.	Update the React app's API URLs to point to the backend ALB.
+________________________________________
+Phase 4: Auto Scaling Groups
+1.	Frontend Auto Scaling Group:
+o	Create an Auto Scaling Group for the frontend.
+o	Set minimum, maximum, and desired capacity.
+o	Use the AMI to launch new instances.
+2.	Backend Auto Scaling Group:
+o	Create an Auto Scaling Group for the backend.
+o	Define health checks to ensure only healthy instances are in the ALB.
+________________________________________
+Phase 5: Application Integration
+1.	Update Flask to connect to the MySQL database using the database’s private IP.
+2.	Update React to use the backend ALB's DNS name for API requests.
+3.	Test end-to-end connectivity.
+________________________________________
+Phase 6: Monitoring and Optimization
+1.	CloudWatch:
+o	Set up monitoring for EC2 instances, ALBs, and Auto Scaling Groups.
+o	Create alarms for CPU utilization, instance health, etc.
+2.	Logging:
+o	Enable access logging for ALBs.
+o	Use centralized logging tools like ELK Stack for better insights.
+3.	Cost Optimization:
+o	Choose appropriate instance types.
+o	Use Reserved Instances or Savings Plans for cost savings.
+________________________________________
+Phase 7: Final Testing and Deployment
+1.	Test the application from end to end:
+o	Access the React app via the frontend ALB.
+o	Verify that the React app communicates with the backend through the backend ALB.
+o	Ensure the backend interacts with the MySQL database.
+2.	Perform load testing using tools like Apache JMeter or Artillery.
+
