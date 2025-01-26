@@ -1,0 +1,152 @@
+Python for DevOps role
+Python Automation for DevOps: Tasks and Solutions
+________________________________________
+Real-Time Scenarios for DevOps Automation:
+1: Automating Infrastructure Provisioning with AWS SDK (Boto3)
+2: Automating CI/CD Pipeline Deployment with Jenkins and Python
+3: Automating Kubernetes Cluster Management
+4: Automating Docker Container Builds and Deployment
+5: Automating Infrastructure Monitoring and Alerts / Lambda
+
+In Detail
+1. Real-Time Scenario: Automating Infrastructure Provisioning with AWS SDK (Boto3)
+Scenario: As a DevOps engineer, you're tasked with automating the provisioning of resources on AWS, such as EC2 instances, S3 buckets, or even creating VPCs. Python’s boto3 SDK allows you to interact with AWS services programmatically.
+Steps:
+1.	Use Python to interact with AWS using the Boto3 SDK.
+2.	Automate the process of launching EC2 instances or creating an S3 bucket.
+3.	Automate security configurations such as IAM roles, policies, and key pairs.
+Python Script Example:
+import boto3
+# Initialize a session using Amazon EC2
+ec2 = boto3.resource('ec2')
+# Create an EC2 instance
+instance = ec2.create_instances(
+    ImageId='ami-0a91cd140a1fc148a',
+    MinCount=1,
+    MaxCount=1,
+    InstanceType='t2.micro',
+    KeyName='your-key-pair'
+)
+print(f"EC2 instance {instance[0].id} has been created successfully!")
+Real-Time Application: Automate the creation of EC2 instances or S3 buckets for different stages in your DevOps pipeline.
+________________________________________
+2. Real-Time Scenario: Automating CI/CD Pipeline Deployment with Jenkins and Python
+Scenario: As a DevOps engineer, you’re managing Jenkins for automating continuous integration and delivery (CI/CD) pipelines. Python can be used to automate tasks such as triggering Jenkins jobs, monitoring their status, and interacting with Jenkins API to manage pipelines.
+Steps:
+1.	Use the JenkinsAPI Python library to trigger Jenkins builds.
+2.	Monitor the job’s status and collect logs for analysis.
+3.	Automate the setup of Jenkins jobs and manage configurations.
+Python Script Example:
+from jenkinsapi.jenkins import Jenkins
+
+# Connect to Jenkins server
+jenkins_url = "http://localhost:8080"
+jenkins = Jenkins(jenkins_url)
+
+# Trigger a Jenkins job
+job_name = 'my-pipeline-job'
+job = jenkins.get_job(job_name)
+job.invoke(build_params={'branch': 'master'})
+
+print(f"Jenkins job {job_name} has been triggered successfully!")
+Real-Time Application: Automatically trigger Jenkins jobs as part of your CI/CD pipeline for code builds, testing, and deployment.
+________________________________________
+3. Real-Time Scenario: Automating Kubernetes Cluster Management
+Scenario: DevOps engineers often work with Kubernetes to manage containerized applications. Automating tasks such as creating namespaces, managing pods, and monitoring cluster health using Python’s Kubernetes client (kubernetes-py) can streamline these tasks.
+Steps:
+1.	Use Python to interact with Kubernetes clusters (e.g., create namespaces, deploy pods).
+2.	Automate the deployment of applications to Kubernetes clusters.
+3.	Automate monitoring and scaling of resources within the cluster.
+Python Script Example:
+from kubernetes import client, config
+
+# Load Kubernetes config
+config.load_kube_config()
+
+# Create a new namespace
+v1 = client.CoreV1Api()
+namespace = 'my-namespace'
+
+namespace_obj = client.V1Namespace(
+    metadata=client.V1ObjectMeta(name=namespace)
+)
+
+# Create the namespace
+v1.create_namespace(namespace_obj)
+print(f"Namespace {namespace} created successfully!")
+Real-Time Application: Automate the creation of Kubernetes resources (pods, services, deployments) and monitor the cluster’s health with Python.
+________________________________________
+4. Real-Time Scenario: Automating Docker Container Builds and Deployment
+Scenario: As a DevOps engineer, managing containerized applications using Docker is a key task. Python can automate building Docker images, pushing them to a Docker registry, and deploying them to a container orchestration platform like Kubernetes or Docker Swarm.
+Steps:
+1.	Use the docker Python SDK to interact with Docker containers.
+2.	Automate Docker image builds and pushes to Docker Hub or Amazon ECR.
+3.	Automate the deployment of Docker containers to a Kubernetes or Docker Swarm cluster.
+Python Script Example:
+import docker
+# Initialize Docker client
+client = docker.from_env()
+# Build Docker image
+image = client.images.build(path=".", tag="my-app:latest")
+# Push image to Docker Hub
+client.images.push('my-app:latest')
+
+print(f"Docker image built and pushed successfully!")
+Real-Time Application: Automate the CI/CD pipeline for Docker containers, from image building to deployment.
+________________________________________
+5. Real-Time Scenario: Automating Infrastructure Monitoring and Alerts
+Scenario: A key responsibility of DevOps engineers is to monitor infrastructure health and set up alerting systems for anomalies (e.g., high CPU usage, failed deployments). Python can be used to interact with cloud monitoring services like AWS CloudWatch or third-party services like Prometheus.
+Steps:
+1.	Use Python to monitor EC2 instance metrics such as CPU usage, disk I/O, and network activity.
+2.	Set up CloudWatch alarms based on thresholds.
+3.	Automate the notification process when an alert is triggered (e.g., send a Slack message, email).
+Python Script Example:
+import boto3
+# Initialize CloudWatch client
+cloudwatch = boto3.client('cloudwatch')
+
+# Set up an alarm for high CPU usage
+cloudwatch.put_metric_alarm(
+    AlarmName='HighCPUUsage',
+    MetricName='CPUUtilization',
+    Namespace='AWS/EC2',
+    Statistic='Average',
+    Period=300,
+    Threshold=80.0,
+    ComparisonOperator='GreaterThanThreshold',
+    Dimensions=[
+        {
+            'Name': 'InstanceId',
+            'Value': 'i-1234567890abcdef0'
+        },
+    ],
+    AlarmActions=[
+        'arn:aws:sns:us-east-1:123456789012:MyTopic'
+    ]
+)
+
+print("CloudWatch alarm has been set successfully!")
+Real-Time Application: Monitor and manage infrastructure health, setting up alerts and automating notifications for critical issues.
+
+Project Breakdown
+1.	Introduction to Python for DevOps:
+o	Install Python and Setup Development Environment: Quick guide to setting up Python and configuring your IDE.
+o	Python Libraries for DevOps: Introduction to key libraries like boto3, jenkinsapi, docker, kubernetes, and others.
+2.	Automating Cloud Infrastructure Provisioning:
+o	Use boto3 to automate the provisioning of EC2 instances, S3 buckets, and IAM roles in AWS.
+3.	Automating CI/CD Pipeline Management:
+o	Automate triggering and monitoring Jenkins jobs using Python, enabling integration with GitHub or GitLab repositories.
+4.	Kubernetes Automation:
+o	Use Python to interact with Kubernetes clusters, deploy pods, and manage namespaces.
+5.	Docker Automation:
+o	Automate Docker image builds, pushes to registries, and container deployments.
+6.	Infrastructure Monitoring and Alerting:
+o	Use Python to monitor AWS resources and configure CloudWatch alarms, automate notifications to Slack or email when thresholds are met.
+________________________________________
+Project Deliverables
+•	Automated AWS Infrastructure Provisioning: Python script to create and manage resources on AWS.
+•	CI/CD Pipeline Automation: Python script to trigger Jenkins jobs, monitor status, and send notifications.
+•	Kubernetes Cluster Automation: Python script to create and manage Kubernetes resources.
+•	Docker Automation: Python script for building, pushing, and deploying Docker containers.
+•	Monitoring and Alerts: Python script to monitor cloud infrastructure health and send alerts.
+
