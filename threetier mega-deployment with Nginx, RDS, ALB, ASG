@@ -271,12 +271,12 @@ show databases;
 exit
 Create a database dump file to backup all the data in threetier
 mysqldump  -u threetieruser  -p threetier > db_dump.sql
-Enter the password hello123
+Enter the password 123Hello
 ls  (Now, load the dump file into RDS database)
 mysql  -h <RDS_endpoint>  -u admin  -p threetier < db_dump.sql
 Enter the password hello123
 mysql  -h <RDS_endpoint>  -u admin  -p
-Enter the password hello123
+Enter the password hello123456
  use threetier;
  show tables;
 select * from users;
