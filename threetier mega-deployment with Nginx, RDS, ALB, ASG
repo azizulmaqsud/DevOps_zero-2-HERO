@@ -1,0 +1,295 @@
+Three-tier Application Deployment with VPC, Nginx, Load Balancer, Auto Scaling, and RDS
+Project Road Map   
+1. Create a VPC with 6 subnets, 4 route tables, an IGW, and a NAT using VPC Wizard
+2. Create 4 EC2 servers for the bastion, backend, frontend, and database. Keep the bastion in a public subnet and others in private subnets
+3. Configure the database server. Create the database, tables, and users.
+4. Prepare the deployment environment in the backend server and deploy the backend application
+5. Prepare the frontend environment and deploy it with Nginx
+6. Create a Load Balancer for the backend servers
+7. Create a Load Balancer for the frontend servers
+8. Create a custom AMI of the frontend server
+9. Run new frontend servers from the custom AMI
+10. Create Auto Scaling Group (ASG) for the frontend servers
+11. Stress the frontend servers manually and check if the ASG is working
+12. Automate the running of the backend server with a shell script and Cron
+13. Create an RDS database in the AWS
+14. Connect to the RDS database in the AWS from the database server
+15. Import data from the local database server to the RDS database
+16. Create a custom AMI of the backend server
+17. Run new backend servers from the custom AMI
+18. Create Auto Scaling Group(ASG) for the backend servers
+19. Check if the Backend ASG is working
+20. View the deployment result: Deployment DONE !!
+Create VPC & more > name three-tier  > CIDR 192.168.0.0/16 > 3 AZs > 3 pub sub + 3 pvt sub > NAT GW in 1 AZ > VPC endpoint s3 Gateway > create VPC 
+Create ec2 for Bastion, DB, Backend, and Frontend servers
+Bastion > ubuntu > three-tier-vpc > pub sub1 > Auto-assigned pub IP Enabled > Bastion SG, only ssh:22, anywhere
+Database > ubuntu > three-tier-vpc > pvt sub1 > Auto-assigned pub IP Disabled > db-SG: 3306, ssh:22, anywhere > user data
+#!/bin/bash
+apt update
+apt install -y mysql-server
+backend > ubuntu > three-tier-vpc > pvt sub1 > Auto-assigned pub IP Disabled > backend-sg: 5000, anywhere, ssh:22, anywhere > user data
+#!/bin/bash
+apt update
+apt install -y python3-pip python3-venv
+Frontend > ubuntu > three-tier-vpc > pvt sub1 > Auto-assigned pub IP disabled > frontend-SG: 80, ssh:22, anywhere > user data
+#!/bin/bash
+apt update 
+apt install -y nginx
+Connect Bastion with Mobaxterm > SSH browser left panel > upload .pem file > ls 
+sudo apt update && sudo apt -y full-upgrade
+sudo  vim  /etc/hosts
+localhost bastion
+# webservers
+<pvt ip of db>  database
+<pvt ip of backend> backend
+<pvt ip of frontend> frontend
+sudo hostnamectl set-hostname bastion
+sudo reboot
+R 
+Login to DB from Bastion host
+chmod 400 threetier.pem
+ssh  -i  threetier.pem < DB pvt IP >
+sudo vim /etc/hosts
+	localhost database
+sudo hostnamectl set-hostname database
+sudo reboot
+R 
+ssh –i  threetier.pem <database pvt ip>
+Configure Database in the database server
+sudo systemctl status mysql
+sudo mysql
+create database threetier;
+show databases;
+use threetier;
+CREATE TABLE users (id int NOT NULL AUTO_INCREMENT, email varchar(100), password varchar(100), primary key(id));
+CREATE TABLE history (id int NOT NULL AUTO_INCREMENT, number varchar(100), response varchar(100), type varchar(30), time timestamp default current_timestamp, primary key(id));
+show tables;
+INSERT INTO users (email, password) values ("hello@example.com", "hello123");
+select * from users;
+Update database root user
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'hello123’;
+Activate privileges
+FLUSH PRIVILEGES;
+CREATE USER 'threetieruser'@'%' IDENTIFIED BY 'hello123';
+GRANT ALL PRIVILEGES ON *.* TO 'threetieruser'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+ exit
+sudo systemctl restart mysql
+cd  /etc/mysql/mysql.conf.d
+ sudo vim mysqld.cnf
+bind-address=0.0.0.0
+mysqlx-bind-address=0.0.0.0
+cd 
+sudo systemctl restart mysql  
+sudo apt install net-tools
+netstat  -tunlp (see 0.0.0.0:3306)
+netstat -tunlp | grep -i tcp
+exit (to go to bastion)
+telnet   <db ip> 3306  (see connected)
+ q
+Prepare backend environment and run backend application
+From bastion, connect backend server
+ ssh –i three-tier.pem < backend pvt IP >
+ sudo vim  /etc/hosts   backend
+ sudo hostnamectl set-hostname backend
+exit
+ssh  -i threetier.pem backend    Host name should show ubuntu@backend:~$
+ ssh-keygen
+cat .ssh/id_ed25519.pub
+Gitlab profile > preference > SSH keys
+cd
+exit
+ git clone git@github.com:azizulmaqsud/three-tier-app.git
+chown  -R ubuntu:ubuntu two-tier-application
+cd two-tier-application/backend
+vim  .env
+MYSQL_HOST =‘db_pvt_IP'
+MYSQL USER ='threetieruser'
+MYSQL_PASSWORD= 'hello123'
+MYSQL_DB='threetier’
+sudo apt update
+sudo apt install python3.12-venv
+python3 -m venv env
+source env/bin/activate
+pip install wheel
+sudo apt install python3-dev default-libmysqlclient-dev build-essential
+
+cat requirements.txt
+flask
+flask-mysqldb
+flask-cors
+sudo apt install pkg-config 
+pip install  -r  requirements.txt
+export  FLASK_APP=app.py
+flask run  --host 0.0.0.0
+
+Configure and run frontend application.
+from Bastion
+ssh –i key.pem ubuntu@< frontend IP >
+ sudo vim /etc/hosts
+ sudo hostnamectl set-hostname frontend
+ exit
+R
+sudo systemctl status nginx  (see running)
+# sudo apt install nginx
+git clone https://github.com/azizulmaqsud/three-tier-app.git
+cd  two-tier-application/frontend
+git checkout two-tier-v2
+vim .env 
+BACKEND_API_URL=
+# Go to https://github.com/nvm-sh/nvm 
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+Copy export command and run it.    
+nvm install 16
+npm install
+npm run build  (build successful)
+sudo rm -f  /var/www/html/index.nginx-debian.html
+cd build
+sudo cp  -r  .  /var/www/html   (Install Nginx and serve the static files)
+cd  /var/www/html
+# sudo rm  -f  index.nginx-debian.html
+Create a load balancer for frontend servers   
+ALB > Create > name frontend-lb > internet-facing > three-tier-vpc > mapping: all pub subs > 
+create sg named + description same as frontend-lb-sg: select threetier vpc, inbound rule: http, anywhere , out bound: all traffic > create SG
+Come back to ALB > reload SG > select frontend-lb-sg
+Listeners and routing: listener HTTP and port 80 is good
+Click on create target group > type – instances > name frontend-tg, HTTP:80 > select three-tier-vpc > HTTP1 > port: traffic port, healthy threshold:2, unhealthy threshold:2, timeout:5, interval:10 seconds > set the success code 200-399 > next > specify frontend-server > create 
+Come back to creating load balancer and reload the target group ubder listeners and routing
+Select the frontend-tg > create load balancer
+Create a load balancer for backend servers   
+ALB > create > name backend-lb > internal scheme > threetier-vpc > mapping: all the pvt subnets > create new sg > name backend-lb-sg > threetier vpc > Inbound rule> custom TCP > port 5000 > source Anywhere > Click on create SG
+Come back to ALB > reload SG > select backend-lb-sg > remove default sg > HTTP, 5000 > create target group > instances > select TG named backend-tg > protocol HTTP, 5000 > three-tier-vpc > advanced health check settings > select source codes 200-399 
+Select backend-server > set port 5000 > click include as pending below > create target group 
+Comeback to creating load balancer and reload the target group > select backend-tg > create load balancer
+Go to EC2 > target group > backend-tg    (see healthy)
+Copy DNS of frontend-LB, then paste at new Tab, see running two-tier-app (REACT)
+Configure Backend Endpoints in the Frontend Nginx file
+Go to the backend-lb load balancer and copy the DNS name.
+(earlier was frontend/build)
+cd
+Now Go to frontend/two-tier/frontend$    
+ls
+# sudo vim /etc/nginx/sites-enabled/default
+vim default.conf   (change inside)
+	root  /var/www/html;
+		proxy_pass http://< internal backend lb dns name>;
+copy then add four endpoints ( reverser, summation, login, get-history) 
+sudo systemctl restart nginx
+cat default.conf   now copy inside file
+cd  /etc/nginx/sites-enabled/
+ls  see default
+# Add the API endpoints inside the following file:
+sudo vim default        (first, delete all files)
+paste copied content
+sudo systemctl restart nginx 
+Go to your browser and type the Frontend-lb load balancer DNS address
+You should be able to view the application from the frontend. 
+
+Create an AMI of the frontend server 
+Select the frontend ec2 instance and click the Actions dropdown, then Image and templates > Create Image > name threetier-frontend > Create Image
+Create a new frontend server from the AMI
+ec2- > Name the instance frontend-2 > My AMIs threetier-frontend AMI > key pair > VPC three-tier-vpc > private-2 subnet> frontend-sg security group
+
+Register the new frontend server in the frontend Target Group
+Load balancing > target groups > frontend-tg > Register targets > frontend-2 > port 80 > Include as pending below > Register pending targets
+Check the frontend-tg target group and see if both of the frontend servers are healthy. Now, if you terminate the frontend-server the frontend still should work. Select the frontend-server and from the Instance state dropdown, hit Terminate instance
+Go to frontend-lb load balancer DNS Address. The frontend should still work from the frontend-server-2, even though the frontend-server is down
+
+Create Auto-Scaling Group for the Frontend Servers
+Create Auto Scaling Group > name frontend-asg > Create a launch template > Name frontend-asg-lt > description "v1" > AMI threetier-frontend > t2.micro > key pair > subnet: Don't include in launch template > frontend-sg > Create launch template
+Reload the launch templates and choose frontend-asg >  Three-tier-vpc > Select all the private subnets > next step > Select Attach to an existing load balancer > Set the target group frontend-tg > And tick the Turn on Elastic Load Balancing health checks > Set the Desired capacity as 1, Minimum capacity 1 and Maximum capacity 2
+From the Scaling policies, Select Target tracking scaling policy > Metric type Average CPU utilization > Target value 15
+Next > Next > Create auto scaling group
+Test the Frontend Auto Scaling
+You can see the newly created frontend server by the Auto Scaling Group at the bottom.
+Now select the previous two frontend servers frontend-1 and frontend-2, then terminate these two instances. Select the newly created frontend server by the ASG and copy its Private IPv4 address
+Connect to the frontend server from the bastion host > Install stress to stress your frontend server manually.
+sudo apt install stress
+htop
+From   EC2 select your frontend server. Then, from Monitoring tab, Enlarge the CPU utilization graph.
+Now from the terminal execute
+sudo apt install stress-ng
+stress  --cpu 1  --timeout 300
+In the CPU utilization graph, set 5 seconds and Average parameters. Then hit refresh a few times. You will see a spike in CPU utilization in a moment
+Go to your frontend-asg ASG, and navigate to the Activity tab
+You'll see multiple EC2 servers have been created successfully as a result of the manual stressing the frontend server. This means the frontend-asg is working properly
+Go to EC2 and verify that the frontend servers have been created.
+Navigate to the frontend-tg target group and see if all 5 servers are healthy
+Automate the Backend Server Running with Shell Script
+From your backend server terminal, go to the home directory and write a shell script to automate the backend server.
+netstat  -tunlp see no 5000
+cd two-tier-application/backend
+ source env/bin/activate
+ flask run  --host 0.0.0.0      (now, it gets request from ALB)
+ deactivate
+cd  (go to root)
+sudo vim start-backend.sh 
+#!/bin/bash
+cd /home/ubuntu/two-tier-application/backend
+source env/bin/activate
+flask run --host 0.0.0.0
+Change the permission of the shell script.
+sudo chmod 777 start-backend.sh
+ls  -l start-backend.sh
+Run script
+  ./start-backend.sh
+Configure crontab to run the script after every reboot.
+ sudo crontab  -e
+ Press 2 to edit with vim
+Add the following line to the file at last line
+@reboot  /start-backend.sh
+Then save and exit vim.
+Reboot the Backend server and ssh to it again.
+sudo reboot
+ssh -i threetier.pem backend
+sudo apt install net-tools
+netstat  -tunlp   see 5000 listening
+Create an RDS database   
+RDS > standard > MySQL > v 8.0.32 > free tier > identifier threetier > master username admin > password hello123 > db.t3.micro >  gp2 storage > disable Storage autoscaling > Select three-tier-vpc > public access NO > Create new security group rds-sg > A Z  No preference > Disable Enhanced monitoring > Additional configuration, Initial database name threetier > Disable automated backups, encryption and auto minor version upgrade > Create database.
+Go to the newly created three-tier-db. From Connectivity & security tab, go to VPC security groups. From Actions dropdown, go to Edit inbound rules > name MySQL > Source 192.168.0.0/16  (our vpc id). Now, see the RDS database endpoint and copy it
+Connect to the RDS Database and Import Data
+backend@ telnet <RDS_endpoint>  3306
+two-tier/backend@
+vim  .env
+cd  
+netstat  -tunlp
+Now grab the flask process id (pid) and kill it
+ps aux | grep  -i flask   (pid is beside at root )
+sudo kill <pid>
+netstat -tunlp   port 5000 is killed
+ Verify that 5000 port has been stopped. Reboot the Backend server.
+ sudo reboot
+Connect to the new Backend server again
+ssh -i threetier.pem Backend
+# journalctl
+# cd /var
+Go to your database server terminal.
+ssh -i threetier.pem database 
+mysql  -h <RDS_endpoint>  -u admin  -p
+create database threetier;
+show databases;
+exit
+Create a database dump file to backup all the data in threetier
+mysqldump  -u threetieruser  -p threetier > db_dump.sql
+Enter the password hello123
+ls  (Now, load the dump file into RDS database)
+mysql  -h <RDS_endpoint>  -u admin  -p threetier < db_dump.sql
+Enter the password hello123
+mysql  -h <RDS_endpoint>  -u admin  -p
+Enter the password hello123
+ use threetier;
+ show tables;
+select * from users;
+
+Go to frontend DNS and view the result
+Delete the database EC2 server. Now, the application will get data from RDS database.
+Go to the Frontend lb DNS Address and view the result. Frontend, Backend, and Database everything should work at this point. All the endpoints should work.
+Create an AMI of the backend server 
+Select the backend-server instance and click the Actions dropdown, then Image and templates > Create Image > name threetier-backend > Create Image
+
+Create Auto-Scaling Group for the Backend Servers
+name backend-asg > launch template: backend-asg-lt > version "v1"> AMI three-tier-backend > t2.micro > subnet: Don't include in launch template > existing security backend-sg > Create launch template
+Reload > choose backend-asg-lt > Next > Select the custom Three-tier-vpc > all the private subnets > Attach to an existing load balancer >  backend-tg > Turn on Elastic Load Balancing health checks > Desired capacity as 1, Minimum capacity 1 and Maximum capacity as 2 > Target tracking scaling policy > Metric type Average CPU utilization > Target value 15 >  tag value backend-asg > Create Auto Scaling group
+In the EC2, see that backend-asg  has been created. From the backend-tg Target group see that another server is added and it's healthy. Now, terminate the backend-server.
+Now, go to the Frontend DNS Address and view the result. At this point, Auto Scalling has been successfully incorporated and AWS is handling all the servers and database.
+Thank You!
