@@ -15,10 +15,10 @@
 			"Sid": "AllowIAMUserScheduleKeyDeletion",
 			"Effect": "Allow",
 			"Principal": {
-				"AWS": "arn:aws:iam::<your-aws-account-number>:user/kms_key_recovery_0e2a2f5d-f59a-4de0-8c85-cec0005f2c76"
+				"AWS": "arn:aws:iam::<your-aws-account-number>:user/<usr name like kms_key_recovery_0123456789>"
 			},
 			"Action": "kms:ScheduleKeyDeletion",
-			"Resource": "arn:aws:kms:us-east-1:<your-aws-account-number>:key/0e2a2f5d-f59a-4de0-8c85-cec0005f2c76"
+			"Resource": "arn:aws:kms:us-east-1:<your-aws-account-number>:key/<number like 0123456789>"
 		}
 	]
 }
