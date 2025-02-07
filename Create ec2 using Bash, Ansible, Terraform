@@ -67,7 +67,7 @@ sudo systemctl start httpd
 sudo systemctl enable httpd
 ________________________________________
 4. Create a Test Web Page
-echo "<h1>Welcome to your EC2-hosted web server!</h1>" | sudo tee /usr/share/nginx/html/index.html
+echo '<h1>Welcome to your EC2-hosted web server!</h1>' | sudo tee /usr/share/nginx/html/index.html
 For Apache, use:
 echo "<h1>Welcome to your EC2-hosted web server!</h1>" | sudo tee /var/www/html/index.html
 ________________________________________
