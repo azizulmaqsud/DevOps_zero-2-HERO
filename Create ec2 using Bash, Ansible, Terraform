@@ -1,0 +1,354 @@
+AWS Real-time Project:
+How to create ec2 instances using BASH, Terraform & Ansible?
+How do you change the ec2 instances type?
+
+Vim install.sh
+sudo apt update && sudo apt -y full-upgrade
+sudo apt install unzip -y
+ #========== AWS CLI installation ==========
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+rm -fr awscliv2.zip aws
+#===== install ansible ========
+sudo apt-get install software-properties-common -y
+sudo add-apt-repository --yes --update ppa:ansible/ansible
+sudo apt install python3-pip
+sudo apt install python3-boto3
+sudo apt install ansible-core
+sudo apt-get install ansible -y
+#========= Terraform installation ==========
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+ansible --version
+terraform --version
+aws  version
+
+chmod +x install.sh
+./install.sh
+
+1. Set Up AWS CLI (if using CLI)
+•	Install the AWS CLI (aws-cli).
+•	Configure it using:
+aws configure
+Provide your Access Key, Secret Key, and the desired region.
+________________________________________
+2. Create an EC2 Instance using BASH
+Command to launch an EC2 instance using AWS CLI:
+aws ec2 run-instances \
+--image-id ami-0c55b159cbfafe1f0 \
+--count 1 \
+--instance-type t2.micro \
+--key-name your-key-pair \
+--security-group-ids sg-xxxxxx \
+--subnet-id subnet-xxxxxx \
+--associate-public-ip-address \
+--tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=WebServerInstance}]'
+Ensure to replace the following placeholders:
+•	ami-0c55b159cbfafe1f0: Amazon Linux 2 AMI (update for your region).
+•	your-key-pair: Name of the key pair.
+•	sg-xxxxxx: Security group allowing HTTP/HTTPS traffic.
+•	subnet-xxxxxx: Subnet within your VPC.
+________________________________________
+3. Install Web Server (Nginx/Apache)
+Connect to the instance:
+ssh -i your-key.pem ec2-user@your-public-ip
+Install Nginx (Recommended)
+sudo yum update -y
+sudo amazon-linux-extras enable nginx1
+sudo yum install -y nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+Install Apache (Optional)
+sudo yum update -y
+sudo yum install httpd -y
+sudo systemctl start httpd
+sudo systemctl enable httpd
+________________________________________
+4. Create a Test Web Page
+echo "<h1>Welcome to your EC2-hosted web server!</h1>" | sudo tee /usr/share/nginx/html/index.html
+For Apache, use:
+echo "<h1>Welcome to your EC2-hosted web server!</h1>" | sudo tee /var/www/html/index.html
+________________________________________
+5. Open Ports in Security Group
+Ensure inbound rules in the security group allow:
+•	Port 22 for SSH
+•	Port 80 for HTTP
+
+
+Use Terraform
+Terraform Script
+This setup includes creating an EC2 instance, installing NGINX, and setting up a security group to allow HTTP and SSH traffic.
+provider "aws" {
+  region = "us-east-1"
+}
+
+resource "aws_key_pair" "ec2_key" {
+  key_name   = "webserver-key"
+  public_key = file("~/.ssh/id_rsa.pub")
+}
+
+resource "aws_security_group" "web_sg" {
+  name        = "web-server-sg"
+  description = "Allow SSH and HTTP traffic"
+
+  ingress {
+    description = "Allow SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "web_server" {
+  ami           = "ami-0c55b159cbfafe1f0"  # Amazon Linux 2 AMI
+  instance_type = "t2.micro"
+  key_name      = aws_key_pair.ec2_key.key_name
+  security_groups = [aws_security_group.web_sg.name]
+
+  user_data = <<-EOF
+    #!/bin/bash
+    sudo yum update -y
+    sudo amazon-linux-extras enable nginx1
+    sudo yum install -y nginx
+    sudo systemctl start nginx
+    sudo systemctl enable nginx
+    echo "<h1>Hello from Terraform NGINX Web Server</h1>" > /usr/share/nginx/html/index.html
+  EOF
+
+  tags = {
+    Name = "TerraformWebServer"
+  }
+}
+________________________________________
+Instructions to Deploy
+1.	Save the above file as main.tf.
+2.	Initialize Terraform:
+terraform init
+3.	Preview the resources to be created:
+terraform plan
+4.	Apply the configuration:
+terraform apply
+Type yes when prompted.
+________________________________________
+Access the Web Server
+•	Grab the public IP from the output of terraform apply.
+•	Open the browser and navigate to http://<EC2_PUBLIC_IP>.
+
+
+
+Use Ansible
+Here’s a comprehensive solution using Ansible to create an EC2 instance and install a web server:
+________________________________________
+1. Directory Structure
+project-directory/
+├── create_ec2.yml
+├── ansible.cfg
+└── inventory.ini
+________________________________________
+2. ansible.cfg
+Configuring Ansible to use AWS Boto3:
+[defaults]
+inventory = inventory.ini
+remote_user = ec2-user
+private_key_file = ~/.ssh/your-key.pem
+host_key_checking = False
+________________________________________
+3. inventory.ini
+The dynamic inventory where Ansible will discover EC2 instances:
+[web]
+<ec2_PUBLIC_IP>
+________________________________________
+4. create_ec2.yml (Ansible Playbook)
+This playbook will create the EC2 instance and configure the Nginx web server.
+---
+- name: Launch and configure EC2 instance
+  hosts: localhost
+  gather_facts: no
+  vars:
+    key_pair_name: "webserver-key"
+    instance_type: "t2.micro"
+    ami_id: "ami-0c55b159cbfafe1f0"  # Amazon Linux 2
+    security_group: "web-sg"
+    region: "us-east-1"
+
+  tasks:
+    - name: Create a security group
+      community.aws.ec2_security_group:
+        name: "{{ security_group }}"
+        description: "Allow SSH and HTTP traffic"
+        region: "{{ region }}"
+        ingress:
+          - protocol: tcp
+            port: 22
+            cidr_ip: 0.0.0.0/0
+          - protocol: tcp
+            port: 80
+            cidr_ip: 0.0.0.0/0
+        state: present
+
+    - name: Create a key pair
+      community.aws.ec2_key:
+        name: "{{ key_pair_name }}"
+        region: "{{ region }}"
+        key_material: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+    - name: Launch an EC2 instance
+      community.aws.ec2_instance:
+        name: "WebServerInstance"
+        key_name: "{{ key_pair_name }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        region: "{{ region }}"
+        security_group: "{{ security_group }}"
+        wait: yes
+        assign_public_ip: yes
+      register: ec2
+
+    - name: Wait for SSH to become available
+      wait_for:
+        host: "{{ ec2.instances[0].public_ip }}"
+        port: 22
+        delay: 10
+        timeout: 300
+        state: started
+
+    - name: Add the new instance to the inventory
+      add_host:
+        name: "{{ ec2.instances[0].public_ip }}"
+        groups: web
+
+- name: Install and configure web server
+  hosts: web
+  tasks:
+    - name: Update system packages
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Install NGINX
+      yum:
+        name: nginx
+        state: present
+
+    - name: Start and enable NGINX
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Create a custom index page
+      copy:
+        content: "<h1>Hello from Ansible Automated Web Server</h1>"
+        dest: /usr/share/nginx/html/index.html
+________________________________________
+5. Run the Playbook
+1.	Install required dependencies:
+ansible-galaxy collection install community.aws
+2.	Execute the playbook:
+ansible-playbook create_ec2.yml
+________________________________________
+Access the Web Server
+•	Copy the public IP of the instance from the Ansible output.
+•	Visit http://<EC2_PUBLIC_IP> to see the custom Nginx web page
+
+Now, change ec2 type to t2.medium
+---
+- name: Launch and configure EC2 instance
+  hosts: localhost
+  gather_facts: no
+  vars:
+    key_pair_name: "webserver-key"
+    instance_type: "t2.medium"  # Changed to t2.medium
+    ami_id: "ami-0c55b159cbfafe1f0"  # Amazon Linux 2
+    security_group: "web-sg"
+    region: "us-east-1"
+
+  tasks:
+    - name: Create a security group
+      community.aws.ec2_security_group:
+        name: "{{ security_group }}"
+        description: "Allow SSH and HTTP traffic"
+        region: "{{ region }}"
+        ingress:
+          - protocol: tcp
+            port: 22
+            cidr_ip: 0.0.0.0/0
+          - protocol: tcp
+            port: 80
+            cidr_ip: 0.0.0.0/0
+        state: present
+
+    - name: Create a key pair
+      community.aws.ec2_key:
+        name: "{{ key_pair_name }}"
+        region: "{{ region }}"
+        key_material: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+    - name: Launch an EC2 instance
+      community.aws.ec2_instance:
+        name: "WebServerInstance"
+        key_name: "{{ key_pair_name }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        region: "{{ region }}"
+        security_group: "{{ security_group }}"
+        wait: yes
+        assign_public_ip: yes
+      register: ec2
+
+    - name: Wait for SSH to become available
+      wait_for:
+        host: "{{ ec2.instances[0].public_ip }}"
+        port: 22
+        delay: 10
+        timeout: 300
+        state: started
+
+    - name: Add the new instance to the inventory
+      add_host:
+        name: "{{ ec2.instances[0].public_ip }}"
+        groups: web
+
+- name: Install and configure web server
+  hosts: web
+  tasks:
+    - name: Update system packages
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Install NGINX
+      yum:
+        name: nginx
+        state: present
+
+    - name: Start and enable NGINX
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Create a custom index page
+      copy:
+        content: "<h1>Hello from Ansible Automated Web Server</h1>"
+        dest: /usr/share/nginx/html/index.html
+
+ansible-playbook create_ec2.yml
