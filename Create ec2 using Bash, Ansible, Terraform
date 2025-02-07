@@ -2,7 +2,7 @@ AWS Real-time Project:
 How to create ec2 instances using BASH, Terraform & Ansible?
 How do you change the ec2 instances type?
 
-Vim install.sh
+vim install.sh
 sudo apt update && sudo apt -y full-upgrade
 sudo apt install unzip -y
  #========== AWS CLI installation ==========
