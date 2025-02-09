@@ -1,0 +1,441 @@
+Real-time Cost Saving Project with KOPS
+Kubernetes-Powered Scalable Application Deployment with Auto-Scaling and kOps
+Project roadmap
+Action Items: Kubernetes, Auto-Scaling, Load Balancing, kOps, and Ingress 
+	Create a VPC
+	Enable auto-assign public IPv4 for the Public subnets
+	Create 3 EC2 Servers (K8s-master, K8s-worker-1, K8s-worker-2) for the Kubernetes in the VPC
+	Change hostnames
+	Install Kubernetes on the Kubernetes-master
+	Install K8s in the worker-1 and worker-2
+	Join worker-1 and worker-2 into the K8s cluster
+	Deploy the Two-tier Application in the K8s cluster
+	Scale up the application deployment
+	Create Kubernetes cluster and load balancer using kOps
+
+kOps vs EKS: Which One to Choose?
+Feature	kOps (Kubernetes Operations)	EKS (Elastic Kubernetes Service)
+Managed Service	No, user manages the control plane and worker nodes	Yes, AWS manages the control plane
+Ease of Setup	Complex, requires manual setup and configurations	Simplified, managed by AWS
+Infrastructure	Requires EC2 instances for control and worker nodes	AWS handles control plane, user manages workers
+Cost	Lower for large clusters (no control plane charges)	Higher due to control plane charges
+Flexibility	Highly customizable, full control over Kubernetes	Limited customizations
+Upgrades	Manual rolling upgrades for Kubernetes versions	Managed by AWS with minimal downtime
+Security	User handles cluster security setup	AWS integrates IAM, VPC, and security best practices
+Networking	Customizable (supports Calico, Flannel, etc.)	Integrated with AWS networking (VPC)
+Scaling	User-defined with Auto Scaling options	Managed via EKS managed node groups
+Multi-Cloud	Supported (AWS, GCP, On-Prem)	AWS Only
+Community Support	Strong open-source community	Backed by AWS
+Compliance	User responsible for compliance	AWS provides compliance certifications
+________________________________________
+When to Choose kOps:
+•	You want full control over your Kubernetes cluster configuration.
+•	Prefer cost efficiency for large-scale clusters without AWS EKS control plane fees.
+•	Need a multi-cloud or hybrid deployment strategy.
+When to Choose EKS:
+•	You prefer a managed service with AWS handling the Kubernetes control plane.
+•	Faster cluster setup without complex manual steps.
+•	Tight integration with AWS services such as IAM, ALB, and CloudWatch.
+•	You require a solution that adheres to AWS compliance standards.
+
+Hands-On
+Create VPC
+Select the Resources to create type VPC and more
+Insert the name Kubernetes for the VPC and other networking resources to be identified with 
+You can use any private class for the CIDR address. Let's try class C with the CIDR block 10.0.0.0/16
+Select the number of AZs as 2
+Select 2 public subnets
+Select 2 private subnets
+Choose NAT gateway In 1 AZ
+Set the VPC endpoint None
+Then proceed to Create VPC > Auto Assign public IP Address for the Public-1 & 2 subnet
+Create EC2 > Master + worker > ubuntu > t2.medium > public subnet > Auto-assign public IP enabled > K8s-nodes-sg: All traffic, Anywhere > 20 GiB > Number of instances to 3 > Launch > rename: kubernetes-master, kubernetes-worker-1, and kubernetes-worker-2
+SSH into k8s-master server > Change hostname
+sudo vim /etc/hosts (localhost kmaster)
+sudo hostnamectl set-hostname kmaster
+Exit
+R
+Change name also for worker1 & 2
+Go to multi-execution of mobaxterm
+kmaster@
+Install k8s on Master node
+Follow this guide to install Kubernetes.
+Ubuntu 22.04 >> https://computingforgeeks.com/install-kubernetes-cluster-ubuntu-jammy/
+Ubuntu 20.04 >> https://computingforgeeks.com/deploy-kubernetes-cluster-on-ubuntu-with-kubeadm 
+
+Step 1
+sudo apt update && sudo apt -y full-upgrade
+Add Kubernetes repository for Ubuntu 22.04 to all the servers  
+sudo apt install curl apt-transport-https -y 
+curl -fsSL  https://packages.cloud.google.com/apt/doc/apt-key.gpg|sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/k8s.gpg 
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt -y install curl apt-transport-https
+curl  -fsSL  https://packages.cloud.google.com/apt/doc/apt-key.gpg|sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/kubernetes.gpg
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+# Install kubelet, kubeadm and kubectl https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/  
+sudo apt-get update
+# apt-transport-https may be a dummy package; if so, you can skip that package
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+sudo systemctl enable --now kubelet
+
+kubectl version --client && kubeadm version
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+sudo swapoff -a
+sudo vim  /etc/fstab
+#/swap.img	none	swap	sw	0	0
+
+Step 2
+sudo mount -a
+free -h
+Enable kernel modules and configure sysctl.
+sudo modprobe overlay
+sudo modprobe br_netfilter
+
+# Add some settings to sysctl
+sudo tee /etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+sudo sysctl --system
+# Add repo and Install packages
+sudo apt update
+sudo apt install -y curl gnupg2 software-properties-common apt-transport-https ca-certificates
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/docker-archive-keyring.gpg
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+sudo apt update
+sudo apt install -y containerd.io docker-ce docker-ce-cli
+
+Step 3
+# Create required directories 
+sudo mkdir -p /etc/systemd/system/docker.service.d
+# Create daemon json config file
+sudo tee /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
+}
+EOF
+
+# Start and enable Services
+sudo systemctl daemon-reload 
+sudo systemctl restart docker
+sudo systemctl enable docker
+
+sudo -i
+
+# Ensure you load modules
+sudo modprobe overlay
+sudo modprobe br_netfilter
+
+# Set up required sysctl params
+sudo tee /etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+Step 4
+# Reload sysctl
+sudo sysctl --system
+
+# Add Cri-o repo
+
+OS="xUbuntu_20.04"
+VERSION=1.28
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+echo "deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.list
+curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:$VERSION/$OS/Release.key | apt-key add -
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | apt-key add -
+
+# Install CRI-O 
+sudo apt update
+sudo apt install cri-o cri-o-runc -y
+
+# Update CRI-O CIDR subnet
+sudo sed -i 's/10.85.0.0/172.24.0.0/g' /etc/cni/net.d/100-crio-bridge.conf
+sudo sed -i 's/10.85.0.0/172.24.0.0/g' /etc/cni/net.d/100-crio-bridge.conflist
+
+# Start and enable Service
+sudo systemctl daemon-reload
+sudo systemctl restart crio
+sudo systemctl enable crio
+sudo systemctl status crio
+
+Step 5 - Initialize control plane (Run on the First Master Node)
+Make sure that the br_netfilter module is loaded 
+lsmod | grep br_netfilter
+# Enable kubelet service
+sudo systemctl enable kubelet
+# Pull container images with multiple CRI sockets
+sudo kubeadm config images pull --cri-socket unix:///var/run/crio/crio.sock
+# Create cluster
+sudo sysctl -p
+sudo kubeadm init \
+  --pod-network-cidr=172.24.0.0/16 \
+  --cri-socket unix:///var/run/crio/crio.sock
+
+# Configure kubectl using commands in the output
+export KUBECONFIG=/etc/kubernetes/admin.conf
+# Check cluster status 
+kubectl cluster-info
+If you forgot to copy the kubeadm join token, you can get it again
+kubeadm token create --print-join-command
+Create a join.txt file to save the join command for later
+vim join.txt
+Paste the join command you copied while initializing kubeadm. Then save and quit vim
+Kubectl cluster-info  to check
+Install Kubernetes in the kubernetes-worker-1 Node
+Carefully repeat the Kubernetes installation guide from step 1 to step 4 (slide 16 to slide 32)
+ Remember to change the Worker hostname into kworker-1
+ Then proceed to the next steps
+Join the kubernetes-worker-1 Node in the K8s Cluster
+Get the join command stored in the join.txt file in the kmaster node and run it with the flag
+Token then --cri-socket  /var/run/crio/crio.sock
+This should make the worker node join the cluster
+Go to the kmaster node terminal and verify that kworker-1 has joined the cluster.
+kubectl get nodes
+now, Install Kubernetes in the kubernetes-worker-2 Node
+Carefully repeat the Kubernetes installation guide from step 1 to step 4 (slide 16 to slide 32)
+Remember to change the Worker hostname into kworker-2
+Then proceed to the next steps
+Join the kubernetes-worker-2 Node in the K8s Cluster
+Get the join command stored in the join.txt file in the kmaster node and run it with the flag --cri-socket /var/run/crio/crio.sock
+This should make the worker node join the cluster
+Go to the kmaster node terminal and verify that kworker-2 has joined the cluster.
+kubectl get nodes
+Step 6 - Install Kubernetes Network Plugin (Run on the First Master Node)
+Copy the Weaveworks installation command from this URL and then run it.
+kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+Deploy the Two-tier Application with K8s Cluster
+Set kubectl alias
+ vim ~/.bashrc
+Add the alias command at the tail of the file
+ alias  k=“kubectl”
+Apply the changes 
+ source  ~/.bashrc
+See the change
+ k  get  nodes 
+
+Create the Dev Namespace
+Create a dev directory
+mkdir dev
+cd dev
+Create namespace.yaml file
+k create ns dev --dry-run=client -o yaml > namespace.yaml
+vim namespace.yaml
+apiversion: v1
+kind: Namespace
+metadata:
+	name: dev
+Run the namespace.yaml file
+k apply -f namespace.yaml
+Check the list of namespaces now
+k get ns
+Run the Two-tier Application in the K8s Cluster
+vim  backend.yaml
+Insert the following configuration.
+https://github.com/azizulmaqsud/DevOps_zero-2-HERO/blob/main/k8s%20/backend.yaml
+azizul2go/two-tier-backend-image
+vim  frontend.yaml
+Insert the following configuration.
+https://github.com/azizulmaqsud/DevOps_zero-2-HERO/blob/main/k8s%20/frontend.yaml
+azizul2go/two-tier-frontend-image
+Restart the coredns and weave-net Services
+k get pod -n kube-system
+Delete the coredns and weave-net pods from the kube-system namespace. This will restart those mentioned services and pod connectivity
+k delete pod <coredns_1> <coredns_2> -n kube-system
+k delete pod <weave-net_1> <weave-net_2> <weave-net_3> -n kube-system
+Run the Two-tier Application in the K8s Cluster
+Create backend pod and service
+ k apply -f  backend.yaml
+Create frontend pod and service
+ k apply  -f  frontend.yaml
+See the running pods and services
+ k get pod  -n  dev
+ k get svc   -n  dev
+Hit the 30005 port of the master, worker-1, and worker-2 nodes. You should see both the backend and frontend are running on all the servers.
+
+That means deployment in the K8s cluster has been done successfully.
+
+Scale Up and Automate the Flow of the Cluster using ReplicaSets and Deployments
+Change the namespace context
+kubectl config set-context --current --namespace=dev
+k get pod
+Create a backend deployment
+k create deployment backend --image azizul2go/two-tier-backend-image --replicas 2 --namespace dev --dry-run=client -o yaml --port 5000 > backend-rs.yaml
+ls
+cat backend-rs.yaml     (Created ReplicaSet)
+Run replicaset file
+ k apply -f backend-rs.yaml
+See running pods
+ k get pod
+Delete pod that we ran manually first
+ k delete pod backend
+ k get pod
+********
+see running replicasets
+ k get rs
+Create the  frontend ReplicaSet 
+k create deployment frontend --image azizul2go/two-tier-frontend-image:v2 --port 80 --replicas 2 --namespace dev --dry-run=client -o yaml > frontend-rs.yaml 
+cat frontend-rs.yaml
+Delete the pod that we ran manually at first
+k delete pod frontend
+Run replicaset file
+k apply -f frontend-rs.yaml
+See the running pods now
+k get pod
+k delete pod frontend   (now, app running on all the replicaset! Great. Self independent! haha)
+See the running replicasets
+ k get rs
+Run the Deployments
+Expose the backend deployment
+********
+Expose the backend deployment
+k expose deploy backend --port 5000 --namespace dev --dry-run=client -o yaml > backend-deployment.yaml
+cat backend-deployment.yaml 
+vim backend-deployment.yaml
+Set the name at labels > app: backend > name: backend-service
+Delete previously created backend-service
+Expose the frontend deployment
+k expose deploy frontend --port 80 --type NodePort --namespace dev --dry-run=client -o yaml > frontend-deployment.yaml
+cat frontend-deployment.yaml
+vim frontend-deployment.yaml
+Change 
+Spec: targetPort: 80 now add below
+nodePort: 30006
+Delete previously created -svc
+k get svc -n dev
+k delete svc backend-svc
+k delete svc frontend-svc       (no service now)
+Run the backend and frontend deployments
+k apply -f backend-deployment.yaml
+k apply -f frontend-deployment.yaml
+See deployments
+k get deploy
+Delete the previously running frontend pods to see the deployments in action. The frontend deployment will create new frontend pods within minutes.
+K get pod
+K delete pod  <frontend_pod_1 >  <frontend_pod_2 >  
+k get pod
+Go to the 30006 port of any nodes of the k8s cluster. You should see both the backend and the frontend running.
+Now, the flow is automated. The Deployments are running the Replicasets. And the ReplicaSets are running the Pods.
+Install kOps, Run K8s Cluster with kOps
+Edit frontend service
+vim frontend-deployment.yaml  instead of nodeport, Add  loadbalancer at type
+type:LoadBalancer  (in spec,,,,,)
+Apply the changes and view the running services
+k apply -f frontend-deployment.yaml
+k get svc
+
+Download the deployment files
+Go back to the root directory.
+cd ..
+Then zip the dev folder into the /home/ubuntu directory.
+tar -czf  /home/ubuntu/deployments.tar.gz dev
+cd /home/ubuntu
+ls
+Expand SSH Browser(SFTP)
+Go left panel to the /home/ubuntu directory (You can type the directory name and press Enter) Select the deplyments.tar.gz file right Click on the download button> document > ok to download
+Delete previous k8s cluster
+Select all EC2 instances then terminate all of them
+
+Run a kops server
+Create ec2 with name kops, ubuntu AMI, t2.micro, public ip.
+Run with mobaxterm
+Install kubectl
+sudo apt update && sudo apt -y full-upgrade
+Install Kubectl from the URL https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+curl -LO https://dl.k8s.io/release/v1.27.2/bin/linux/amd64/kubectl
+Modify permission of the kubectl folder and move it to the /usr/bin directory
+ls
+sudo chmod +x kubectl
+sudo mv kubectl /usr/bin/
+sudo apt install unzip
+Copy the AWS CLI installation commands https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+You can remove the aws and awscliv2.zip files
+rm -fr aws awscliv2.zip
+Install kops
+Copy the kOps installation commands  https://kops.sigs.k8s.io/getting_started/install/
+curl -Lo kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64
+chmod +x kops
+sudo mv kops /usr/local/bin/kops
+Create IAM > add users name kops-user > policy AdministratorAccess, create user.
+Go inside user,,, select security credentials tab,,, scroll down, create access key hit…. CLI…. Tick…. Create
+Configure AWS
+Configure the AWS CLI using IAM Access key and Secret access key.
+You can set the region name and output format
+ aws configure
+ aws s3 ls
+If the command doesn't give you any error, AWS configuration ran successfully.
+
+Create cluster with kops
+Create a cluster using kops. Run the command
+kops create cluster --name feb-25.k8s.local --node-count 2 --cloud aws --zones us-east-1b --state s3://(YOUR_S3_BUCKET_NAME) --master-size t2.medium --node-size t2.medium
+Don't forget to replace the S3 bucket name with your own bucket name and set your availability zone.
+N.B.: You may need to create an S3 bucket if you don't have one
+Export the s3 storage name
+ export KOPS_STATE_STORE=s3://my-bucket-us
+See the cluster
+ kops get cluster
+Update your kOps cluster for it to come into action
+kops update cluster --admin --yes feb-23.k8s.local
+Within a few minutes you should see 1 master node and 2 worker nodes popping up in your selected zone
+Create cluster with kops
+Wait for the cluster to be fully ready. Then, see the cluster status
+kubectl cluster-info
+Check the running nodes in the cluster
+kubectl get nodes
+Run the Previous Deployment in the New K8s Cluster
+At left panel, expand the SSH Browser(SFTP)
+Click on the upload button
+Select the previously downloaded deployment.tar file
+Click on Open
+Unzip the deployment.tar file and go inside the dev directory.
+ls
+tar -xzf deployments.tar.gz
+ls
+cd dev
+Create the dev namespace
+kubectl apply -f namespace.yaml
+Run the backend ReplicaSet and Deployment configuration files
+kubectl apply -f backend-rs.yaml
+kubectl apply -f backend-deployment.yaml
+See that the backend pods and the service are running
+kubectl get pods -n dev
+kubectl get svc -n dev
+Run the frontend ReplicaSet and Deployment configuration files
+kubectl apply -f frontend-rs.yaml
+kubectl apply -f frontend-deployment.yaml
+See that the frontend pods and the service are running
+kubectl get pods -n dev
+kubectl get svc -n dev
+
+
+Give it a few minutes to services to run fully and LoabBalancer to come into action with an External-IP
+After a few minutes, the frontend service type should be LoadBalancer and it should have an External-IP
+Copy that External-IP and visit that address on your browser
+View the result
+If you visit the LoadBalancer DNS address, you should see the Two-tier Application running and the backend and frontend both work.
+In AWS console, new loadbalancer has been created
+
+
+Thank You
