@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: dev
+  labels:
+    app: backend
+  name: backend
+spec:
+  containers:
+  - image: azizul2go/two-tier-backend-image
+    name: backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: dev
+  labels:
+    app: backend
+  name: backend-service
+spec:
+  ports:
+  - port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: backend
