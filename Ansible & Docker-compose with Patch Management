@@ -1,0 +1,314 @@
+Real-time Project: DevOps Day-to-day Automation
+Automate Application Deployment on AWS
+using
+Ansible-playbook, Docker-compose, and Patch management 
+ Project Roadmap:
+1.	Create an EC2 server for Ansible
+2.	Import a Key Pair created from the Ansible server
+3.	Create a Two-tier-docker server with the imported key pair
+4.	Create inventory file and ansible.cfg file inside the Ansible server
+5.	Write tasks in the Ansible playbook to install docker and docker-compose
+6.	Create a docker-compose.yaml file to pull the Docker images
+7.	Add tasks to copy the docker-compose.yaml file and run docker-compose stack
+8.	Run the Docker-compose stack with Ansible Playbook
+9.	Create a different host and deploy the two-tier application in it
+
+
+Create bastion-ansible-docker
+sudo apt update && sudo apt -y full-upgrade
+Aws cli installation https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html 
+sudo apt install unzip
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+rm -rf aws awscliv2.zip
+Go to IAM console… Add users > name user > Next > AdministratorAccess policy attach > Next > Create user 
+aws configure
+ aws s3 ls
+
+install Ansible
+sudo apt update && sudo apt -y full-upgrade
+sudo apt-get install software-properties-common -y
+sudo add-apt-repository --yes --update ppa:ansible/ansible
+sudo apt install python3-pip
+sudo apt install python3-boto3
+sudo apt install ansible-core
+sudo apt-get install ansible -y
+ansible --version
+
+vim ~/.bashrc
+export PATH=$PATH:/home/ubuntu/.local/bin
+exit
+R
+Or, 
+echo 'export PATH=$PATH:/home/ubuntu/.local/bin' >> ~/.bashrc 
+source ~/.bashrc
+
+Create a Two-tier Docker Instance
+In order to create a key pair, an SSH key is needed. Create and view the SSH key
+ssh-keygen
+cd .ssh
+cat id_ed25519.pub
+ssh-keygen -t ed25519 -C ubuntu@172.31.29.243
+cat ~/.ssh/id_ed25519.pub
+
+Now, copy the SSH key.
+In the EC2 dashboard, go to the Key Pairs under the Network & Security menu.
+Select the Actions drop-down and proceed to Import key pair
+•	Set a name for the Key pair
+•	Paste the key you created in the ansible server
+View that the Key pair has been created
+Now, go to the EC2 dashboard and Launch an Instance for the Two-tier Application deployment inside a container > Insert a name (two-tier-docker) > Select the AMI ubuntu
+Select the imported custom keypair (ansible-keypair) 
+From Network settings, create a security group that allows All traffic from Anywhere 
+Proceed to Launch instance
+
+See that the two-tier-docker instance is running. Copy its Public IPv4 address
+SSH into the two-tier-docker instance using its IP address from the ansible server
+ssh ubuntu@<two-tier-docker_IP_Address>
+
+Create an Inventory File and ansible.cfg File Inside the Ansible Server
+
+Return to the ansible server from the two-tier-docker  
+Make a new directory and create a hosts file inside that directory
+exit
+mkdir ansible-two-tier
+cd ansible-two-tier
+sudo vim hosts
+Insert the two-tier-docker server's IP Address in the hosts file under the [docker] group
+[docker]
+<two-tier-docker_IP_Address> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_ed25519 
+Now save the file with :wq
+
+Create the ansible.cfg file
+vim ansible.cfg
+Specify default configurations like inventory file name and host key checking settings
+[defaults]
+inventory=hosts.ini
+host_key_checking=False
+
+Write Tasks in the Ansible Playbook to Install Docker and Docker-compose
+Create the Ansible playbook
+vim playbook.yaml
+Write the following configuration inside the playbook
+https://raw.githubusercontent.com/jhriyaz/Ansible-docker/main/pre-playbook.yaml
+
+The configurations have 3 tasks
+I.	Updating the packages (apt repo)
+II.	Installing docker and docker-compose and
+III.	Adding the ubuntu user to the docker group, so that the docker commands can be executed with the superuser privilege 
+---
+- name: Install Docker on Ubuntu
+  hosts: all
+  become: yes
+  tasks:
+    - name: Remove conflicting packages
+      shell: |
+        for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
+          apt-get -y remove $pkg
+        done
+
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+
+    - name: Create directory for Docker keyrings
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Docker's official GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Add Docker APT repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    - name: Update APT package index after adding Docker repo
+      apt:
+        update_cache: yes
+
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Add the ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+Run the Ansible playbook and see it execute all the tasks specified one by one
+ ansible-playbook playbook.yaml
+SSH into the two-tier-docker server again. See that Docker is installed and can be run without sudo
+ ssh ubuntu@<two-tier-docker_IP_Address>
+docker ps
+docker images
+Exit from the two-tier-docker server and go back to the ansible server
+exit
+Create a docker-compose.yaml File to Pull the Docker Images
+Make a new directory named static and create the docker-compose.yaml inside it
+mkdir static
+cd static
+vim compose.yaml
+Write the following configurations  
+https://github.com/azizulmaqsud/DevOps_zero-2-HERO/blob/main/Docker%20/docker-compose.yaml
+This docker-compose file has the frontend and backend services configurations specified in it.
+Add Tasks to Copy the docker-compose.yaml File and Run the docker-compose Stack
+Go back to the ansible-two-tier directory and edit the Ansible playbook again
+cd ..
+ls
+vim playbook.yaml
+Add two more tasks. The first one is for copying the docker-compose.yaml file into the two-tier-docker server with the owner and group permission. And the second one is for running the docker-compose stack     
+https://raw.githubusercontent.com/jhriyaz/Ansible-docker/main/playbook.yaml 
+---
+- name: Install Docker on Ubuntu
+  hosts: all
+  become: yes
+  tasks:
+    - name: Remove conflicting packages
+      shell: |
+        for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
+          apt-get -y remove $pkg
+        done
+
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+
+    - name: Create directory for Docker keyrings
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Docker's official GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Add Docker APT repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    - name: Update APT package index after adding Docker repo
+      apt:
+        update_cache: yes
+
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Add the ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Copy compose.yaml file
+      copy:
+        src: static/compose.yaml
+        dest: /home/ubuntu/compose.yaml
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Run docker compose stack
+      shell: docker compose up -d
+      args:
+        chdir: /home/ubuntu/
+
+Run the Ansible playbook again. See that it executes the task of file copying and running docker-compose stack
+ansible-playbook playbook.yaml
+SSH into the two-tier-docker server one more time
+ssh ubuntu@<two-tier-docker_IP_Address>
+See the running backend and frontend docker-compose processes and docker processes
+docker-compose ps
+docker ps
+Exit from the two-tier-docker server and go back to the ansible server
+exit
+Now, visit the < two-tier-docker_IP_Address>:8080 from your browser and see that the Two-tier application is up and running properly
+Create a Different Host and Deploy the Two-tier Application in It
+Go to the EC2 dashboard and Launch another instance for a new-two-tier instance
+•	Insert the name (new-two-tier )
+•	Select the AMI ubuntu
+•	Select the imported custom keypair (ansible-keypair) 
+•	From Network settings, create a security group that allows All traffic from Anywhere 
+•	Proceed to Launch instance
+
+Now, delete the previously created two-tier-docker instance
+•	Select the two-tier-docker instance
+•	Click on the Instance state drop down and proceed to Terminate instance
+See that the new-two-tier instance is running. Copy its Public IPv4 address
+In the Ansible server, edit the hosts file again
+•	vim hosts
+Replace the host with the new-two-tier server's IP Address
+•	[docker]
+<new-two-tier_IP_Address>
+Run the Ansible playbook and see it execute all the tasks specified one by one and run the docker-compose stack finally
+ ansible-playbook playbook.yaml
+Now, visit the newly created <new-two-tier_IP_Address>:8080 from your browser and see that the Two-tier application is up and running properly
+ We are being able to deploy the two-tier dockerized application in a new server just by adding its IP Address in the hosts file. 
+Implement Patch Management Using Ansible
+•	Create a playbook (patch-management.yml) to update and upgrade package
+vim patch-management.yml
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Update all packages to the latest version
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Remove unnecessary packages
+      apt:
+        autoremove: yes
+
+    - name: Reboot the server if necessary
+      reboot:
+      when: ansible_facts['os_family'] == 'Debian'
+
+
+Then run      ansible-playbook -i hosts.ini patch-management.yml
+
+Thank You
+
+
+
+
+
+
+
+
+
