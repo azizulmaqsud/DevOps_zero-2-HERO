@@ -1,0 +1,184 @@
+Real-time DevOps Day2day:
+Serverless Web Application using AWS Amplify, Lambda, and DynamoDB
+________________________________________
+Project Overview:
+This project focuses on building a serverless architecture web application using AWS services like AWS Amplify for frontend hosting, AWS Lambda for backend logic, and DynamoDB for data storage. The web application will accept user input (first name and last name) and display a personalized message while storing the interaction in a DynamoDB table.
+________________________________________
+Project Roadmap:
+1.	Frontend Setup with AWS Amplify
+Create an index.html file with a basic "Hello World" message.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn IT with Azizul</title>
+    <style>
+        .headline {
+            font-size: 24px;
+            font-weight: bold;
+            color: green;
+        }
+        .actions {
+            font-size: 18px;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <p class="headline">Learn IT with Azizul</p>
+    <p class="actions">Like / Dislike / Comment / Subscribe</p>
+</body>
+</html>
+
+o	Compress the file into a ZIP format.
+o	Go to AWS Amplify and deploy the frontend without Git integration.
+o	Choose the environment as dev, upload the ZIP file, and deploy.
+o	Access the web application through the generated domain URL.
+2.	Create AWS Lambda Function
+o	Go to the AWS Lambda console and create a function using Python 3.12 runtime.
+o	Use the following initial Lambda function code:
+import json
+def lambda_handler(event, context):
+    name = event['firstName'] + ' ' + event['lastName']
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda, ' + name)
+    }
+
+o	Deploy and test the function with the following payload:
+{
+  "firstName": "Ada",
+  "lastName": "Lovelace"
+}
+o	Save and overwrite the test.
+3.	API Gateway Setup
+o	Create a REST API with an edge-optimized endpoint in API Gateway.
+o	Create a POST method and link it to the Lambda function.
+o	Enable CORS and save configurations.
+o	Deploy the API to a new stage named dev and save the invoke URL.
+4.	DynamoDB Table Setup
+o	Go to DynamoDB and create a table with a partition key named ID.
+o	Copy the table ARN for later use.
+5.	Enhance Lambda Function to Store Data in DynamoDB
+Replace the previous Lambda function code with the following:
+import json
+import boto3
+from time import gmtime, strftime
+
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('HelloWorldDatabase')
+now = strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
+
+def lambda_handler(event, context):
+    name = event['firstName'] + ' ' + event['lastName']
+    response = table.put_item(
+        Item={
+            'ID': name,
+            'LatestGreetingTime': now
+        })
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda, ' + name)
+    }
+o	Deploy the updated function.
+
+6.	Update Lambda Permissions
+o	Navigate to the Lambda Execution Role, add an inline policy, and use the following JSON policy:
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem"
+      ],
+      "Resource": "YOUR-TABLE-ARN"
+    }
+  ]
+}
+o	Replace YOUR-TABLE-ARN with the copied ARN and create the policy.
+7.	Interactive Web Application
+o	Update index.html to include an interactive form with JavaScript to call the API:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Form</title>
+    <style>
+        input {
+            color: #232F3E;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 20px;
+            margin-left: 20px;
+        }
+    </style>
+    <script>
+        var callAPI = () => {
+            var firstName = document.getElementById('fName').value;
+            var lastName = document.getElementById('lName').value;
+
+            // Check if both firstName and lastName are provided
+            if (!firstName || !lastName) {
+                alert("Please enter both First Name and Last Name.");
+                return;
+            }
+
+            var myHeaders = new Headers();
+            myHeaders.append("Content-Type", "application/json");
+
+            var raw = JSON.stringify({ "firstName": firstName, "lastName": lastName });
+
+            var requestOptions = {
+                method: 'POST',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+            };
+
+            // Make the API call to the correct API Gateway URL
+            fetch("your-invoke-url", requestOptions)
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert("Error: " + result.error);
+                } else {
+                    alert(result.body);
+                }
+            })
+            .catch(error => console.error('API Error:', error));
+        };
+    </script>
+</head>
+<body>
+    <form>
+        <label>First Name:</label>
+        <input type="text" id="fName">
+        <label>Last Name:</label>
+        <input type="text" id="lName">
+        <button type="button" onclick="callAPI()">Call API</button>
+    </form>
+</body>
+</html>
+
+
+Replace YOUR-API-INVOKE-URL with the actual API Gateway Invoke URL.
+Compress the updated index.html file and redeploy it to AWS Amplify.
+8.	Final Testing
+o	Visit the web application URL, enter first and last names, and click "Call API."
+o	Verify the response and check DynamoDB for stored entries.
+________________________________________
+Project Deliverables:
+•	Web Application URL: Hosted on AWS Amplify
+•	API Gateway: Connected to Lambda for processing requests
+•	DynamoDB Table: Stores user interactions
+•	AWS Lambda Function: Handles backend logic
+________________________________________
+Security and Scalability Considerations:
+•	Enable IAM Role Permissions for secure access to DynamoDB.
+•	Use API Gateway Throttling to handle traffic spikes.
+•	Implement CloudWatch Alarms for monitoring Lambda performance.
+This project provides a complete serverless solution that can scale efficiently without infrastructure management.
+
