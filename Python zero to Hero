@@ -1,0 +1,191 @@
+Python for DevOps / SRE  
+From basics 
+To 
+The real-world applications
+________________________________________
+Roadmap:
+•	Introduction to Python: Introduction to Python and its applications.
+•	Installation: Step-by-step guide on how to install Python.
+•	Basic Concepts: Discuss variables, data types, operators, and strings.
+•	Data Structures: Explain lists, tuples, dictionaries, and sets.
+•	Control Flow: Demonstrate if, else, while, and for loops.
+•	Functions: Introduction to built-in and user-defined functions. 
+•	OOP Concepts: Basic object-oriented programming in Python.
+•	Real-World Applications: Automation, data analytics, AI/ML, and web development.
+In Detail
+1. Introduction to Python
+1.1 What is Python?
+Python is a high-level, interpreted programming language designed for readability and simplicity. It's versatile and supports various programming paradigms such as procedural, object-oriented, and functional programming.
+________________________________________
+2. Installation and Setup
+2.1 Steps to Install Python
+1.	Visit the official Python website: python.org
+2.	Download the executable: Choose the version suitable for your OS (Windows, macOS, or Linux).
+3.	Run the installer: Follow the installation steps, ensuring you add Python to the system path.
+4.	Commands: 
+sudo apt install python3
+sudo apt install python3-pip
+python3 --version
+________________________________________
+3. Python Basics
+3.1 Variables and Data Types
+In Python, variables are containers for storing data values. Python does not require explicit declaration of data types for variables.
+Example:
+name = "Azizul"  # String type
+batch = 1.0  # Float type
+Job = True  # Boolean type
+3.2 Data Types
+•	List: An ordered collection, which is mutable. Sign []
+•	Tuple: An ordered collection, but immutable. Sign ()
+•	Range: Used to generate a sequence of numbers. Like range(0,10,2)
+•	Dictionary: A collection of key-value pairs. No Duplication
+•	Set: An unordered collection of unique elements. No element is repeated. Sign {}
+Example of List:
+list_data = [9, 2.9, [-3, 5], ['jenkins', 'jira']]
+print(list_data)
+Example of Tuple:
+tuple1 = (('cicd', 'Jenkins'), ('security', 'fortify'))
+print(tuple1)
+Example of Range:
+sequence1 = range(4, 14, 2)
+for i in sequence1:
+    print(i)
+Example of Dictionary:
+dict1 = {"name": "DevOps", "batch": 1.0, "canVote": True}
+print(dict1["name"])  # Accessing value by key
+________________________________________
+4. Operators in Python
+4.1 Arithmetic Operators
+These are used to perform arithmetic operations such as addition, subtraction, multiplication, division, etc.
+Example:
+num1 = 25
+num2 = 5
+print(num1 + num2)  # 30
+4.2 Comparison Operators
+These are used to compare values, such as equal to (==), not equal to (!=), greater than (>), etc.
+4.3 Logical Operators
+These are used to combine conditional statements, such as and, or, and not.
+
+________________________________________
+5. String Operations
+5.1 String Methods
+Strings in Python have built-in methods that allow you to perform operations like changing case, splitting, finding substrings, etc.
+Example:
+str = "jenkins"
+print(str.upper())  # Converts to uppercase
+print(str.replace("Jen", "Doc"))  # Replace 'Jen' with 'Doc'
+5.2 String as Array
+A string in Python is a sequence of characters, which can be treated as an array.
+________________________________________
+6. List Operations
+6.1 List Methods
+You can perform operations like appending, inserting, removing, and extending lists.
+ToolsData = ["Maven", "Ansible", "Jenkins", "Sonar"]
+ToolsData.append("Fortify")  # Adding an item to the list
+ToolsData.insert(1, "Docker")  # Inserting an item at a specific index
+ToolsData.remove("Maven")  # Removing an item from the list
+________________________________________
+7. Conditional Statements
+7.1 If-Else Statements
+Used to make decisions based on conditions.
+Example:
+if "Maven" in ToolsData:
+    print("Maven is present.")
+else:
+    print("Maven is absent.")
+________________________________________
+8. Loops in Python
+8.1 For Loop
+Used to iterate over sequences such as lists, strings, etc.
+Example:
+for tool in ToolsData:
+    print(tool)
+8.2 While Loop
+Executes a set of statements as long as the condition is true.
+Example:
+count = 5
+while count > 0:
+    print(count)
+    count -= 1
+________________________________________
+9. Functions in Python
+9.1 Built-in Functions
+Python provides a variety of built-in functions like min(), max(), sum(), print(), etc.
+Example:
+def toolname(security, analysis):
+    print("Tools:", security, analysis)
+
+toolname("Fortify", "Sonar")
+9.2 User-Defined Functions
+You can create custom functions to perform specific tasks.
+________________________________________
+10. Recursion in Python
+10.1 Recursion
+A function calling itself is called recursion. It's useful in tasks like calculating factorials.
+Example:
+def factorial(n):
+    if n == 0:
+        return 1
+    else:
+        return n * factorial(n-1)
+
+print(factorial(5))  # Output: 120
+________________________________________
+11. Object-Oriented Programming (OOP)
+11.1 Classes and Objects
+In Python, classes are blueprints for creating objects.
+Example:
+class Tool:
+    def __init__(self, name, category):
+        self.name = name
+        self.category = category
+    
+    def display_tool(self):
+        print(f"Tool Name: {self.name}, Category: {self.category}")
+
+tool1 = Tool("Jenkins", "CI/CD")
+tool1.display_tool()
+11.2 Inheritance
+Inheritance allows a class to inherit properties and methods from another class.
+Example:
+class DevOpsTool(Tool):
+    def __init__(self, name, category, version):
+        super().__init__(name, category)
+        self.version = version
+
+    def display_tool(self):
+        super().display_tool()
+        print(f"Version: {self.version}")
+
+tool2 = DevOpsTool("Terraform", "IAC", "1.0.0")
+tool2.display_tool()
+________________________________________
+12. File Handling in Python
+12.1 Creating and Reading Files
+Python allows you to read from and write to files.
+Example:
+# Writing to a file
+file = open("text.txt", "w")
+file.write("DevOps Course - Python Basics")
+file.close()
+
+# Reading from a file
+file = open("text.txt", "r")
+print(file.read())  # Output: DevOps Course - Python Basics
+file.close()
+________________________________________
+13. Real-World Applications
+13.1 Automation with Python
+Use Python to automate repetitive tasks like file management, data entry, etc.
+13.2 Data Visualization
+Leverage libraries like Matplotlib and Seaborn for graphical representations of data.
+13.3 Data Analytics
+Use Python for data analysis, extracting insights from raw data using Pandas and NumPy.
+13.4 AI and Machine Learning
+Simulate human behavior and learn from past data using libraries like scikit-learn and TensorFlow.
+13.5 Web Applications
+Build web applications using Flask or Django.
+13.6 Database Handling
+Connect and interact with databases using SQLite, MySQL, or PostgreSQL in Python.
+
+
