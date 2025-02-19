@@ -38,7 +38,7 @@ Job = True  # Boolean type
 •	List: An ordered collection, which is mutable. Sign []
 •	Tuple: An ordered collection, but immutable. Sign ()
 •	Range: Used to generate a sequence of numbers. Like range(0,10,2)
-•	Dictionary: A collection of key-value pairs. No Duplication
+•	Dictionary: A collection of key-value pairs. No Duplication. Sign {}
 •	Set: An unordered collection of unique elements. No element is repeated. Sign {}
 Example of List:
 list_data = [9, 2.9, [-3, 5], ['jenkins', 'jira']]
@@ -53,6 +53,18 @@ for i in sequence1:
 Example of Dictionary:
 dict1 = {"name": "DevOps", "batch": 1.0, "canVote": True}
 print(dict1["name"])  # Accessing value by key
+Example of SET:
+# Creating a set
+my_set = {1, 2, 3, 4, 5}
+print(my_set)  # Output: {1, 2, 3, 4, 5}
+
+# Creating a set with duplicate values (duplicates are removed)
+duplicate_set = {1, 2, 2, 3, 4, 4, 5}
+print(duplicate_set)  # Output: {1, 2, 3, 4, 5}
+
+# Creating a set using set() function
+new_set = set([10, 20, 30, 20])
+print(new_set)  # Output: {10, 20, 30}
 ________________________________________
 4. Operators in Python
 4.1 Arithmetic Operators
@@ -63,8 +75,26 @@ num2 = 5
 print(num1 + num2)  # 30
 4.2 Comparison Operators
 These are used to compare values, such as equal to (==), not equal to (!=), greater than (>), etc.
+Example:
+a = 10
+b = 5
+print(a == b)   # False
+print(a != b)   # True
+print(a > b)    # True
+print(a < b)    # False
+print(a >= 10)  # True
+print(b <= 5)   # True
+
 4.3 Logical Operators
 These are used to combine conditional statements, such as and, or, and not.
+Example:
+x = 10
+y = 5
+z = 20
+
+print(x > y and z > x)   # True (both conditions are True)
+print(x > y or z < x)    # True (one condition is True)
+print(not(x > y))        # False (reverses the result)
 
 ________________________________________
 5. String Operations
@@ -76,6 +106,36 @@ print(str.upper())  # Converts to uppercase
 print(str.replace("Jen", "Doc"))  # Replace 'Jen' with 'Doc'
 5.2 String as Array
 A string in Python is a sequence of characters, which can be treated as an array.
+Example 1: Accessing Characters in a String
+text = "Jenkins"
+print(text[0])   # Output: 'J' (first character)
+print(text[3])   # Output: 'k' (fourth character)
+print(text[-1])  # Output: 's' (last character)
+print(text[-3])  # Output: 'i' (third last character)
+•	Positive indexing starts from 0 (left to right).
+•	Negative indexing starts from -1 (right to left).
+
+Example 2: Slicing a String
+You can extract parts of a string using slicing.
+text = "Jenkins"
+print(text[0:3])   # Output: 'Jen' (from index 0 to 2)
+print(text[:4])    # Output: 'Jenk' (from start to index 3)
+print(text[4:])    # Output: 'ins' (from index 4 to end)
+print(text[-4:])   # Output: 'kins' (last 4 characters)
+print(text[::2])   # Output: 'Jnis' (every second character)
+________________________________________
+Example 3: Iterating Over a String
+text = "Jenkins"
+for char in text:
+    print(char, end=" ")  # Output: J e n k i n s
+________________________________________
+Example 4: Modifying a String (Strings Are Immutable)
+Strings in Python cannot be modified directly because they are immutable.
+text = "Jenkins"
+# text[0] = 'D'  # This will cause an error!
+Instead, you can reassign the string:
+new_text = "D" + text[1:]
+print(new_text)  # Output: "Denkins"
 ________________________________________
 6. List Operations
 6.1 List Methods
@@ -106,16 +166,22 @@ Example:
 count = 5
 while count > 0:
     print(count)
-    count -= 1
+    count -=1
 ________________________________________
 9. Functions in Python
 9.1 Built-in Functions
 Python provides a variety of built-in functions like min(), max(), sum(), print(), etc.
 Example:
-def toolname(security, analysis):
-    print("Tools:", security, analysis)
+def toolname(*tools):
+    return f"Tools: {', '.join(tools)}"
 
-toolname("Fortify", "Sonar")
+# Calling the function with different numbers of tools
+result1 = toolname("Fortify", "Sonar")
+result2 = toolname("Checkmarx", "Bandit", "Burp Suite", "Nessus")
+
+print(result1)
+print(result2)
+
 9.2 User-Defined Functions
 You can create custom functions to perform specific tasks.
 ________________________________________
@@ -129,7 +195,7 @@ def factorial(n):
     else:
         return n * factorial(n-1)
 
-print(factorial(5))  # Output: 120
+print(factorial(4))  # Output: 120
 ________________________________________
 11. Object-Oriented Programming (OOP)
 11.1 Classes and Objects
@@ -165,9 +231,14 @@ ________________________________________
 Python allows you to read from and write to files.
 Example:
 # Writing to a file
-file = open("text.txt", "w")
-file.write("DevOps Course - Python Basics")
-file.close()
+with open("text.txt", "w") as file:
+    file.write("DevOps Course - Python Basics")
+
+# Reading from the file
+with open("text.txt", "r") as file:
+    content = file.read()
+
+print(content)  # Output: DevOps Course - Python Basics
 
 # Reading from a file
 file = open("text.txt", "r")
