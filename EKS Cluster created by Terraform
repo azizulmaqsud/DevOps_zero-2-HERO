@@ -1,0 +1,147 @@
+Real-time DevOps Day2day
+How to Create Cluster at AWS EKS 
+Using Terraform
+
+Basic components:
+local.tf       		Cluster Name
+eks-addons.tf	EbsCsi driver / Storage
+vpc.tf			Networks
+eks.tf			Desired size for Nodes
+
+Step 1: Launch EC2 Instance for the Application
+1.	Go to AWS Console > EC2 > Launch Instance.
+2.	Select Ubuntu 22.04 as the OS.
+3.	Choose an instance type (t2.medium recommended).
+4.	Configure security groups:
+o	Allow port 80 for the web server.
+o	Allow port 22 for SSH access.
+o	Allow port 9997 (Splunk Forwarder data input).
+5.	Click Launch and download the key pair.
+
+vim install.sh
+
+#!/bin/bash
+# Update package list and install dependencies
+sudo apt update -y
+sudo apt install -y unzip curl
+
+# Install AWS CLI
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Install Terraform
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt update -y && sudo apt install terraform -y
+
+# Install eksctl
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin
+
+# Install kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+Step 2: Deploy Kubernetes (EKS) for Containerized Apps
+1.	Create an EKS Cluster using Terraform:
+vim locals.tf
+locals {
+  cluster_name = "splunk-eks-cluster"
+}
+
+vim eks-addons.tf
+
+data "aws_iam_policy" "ebs_csi_policy" {
+  arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+module "irsa-ebs-csi" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
+  version = "5.24.0"
+
+  create_role                   = true
+  role_name                     = "AmazonEKSTFEBSCSIRole-${module.eks.cluster_name}"
+  provider_url                  = module.eks.oidc_provider
+  role_policy_arns              = [data.aws_iam_policy.ebs_csi_policy.arn]
+  oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+}
+
+resource "aws_eks_addon" "ebs-csi" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-ebs-csi-driver"
+  addon_version            = "v1.39.0-eksbuild.1"
+  service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
+  tags = {
+    "eks_addon" = "ebs-csi"
+    "terraform" = "true"
+  }
+}
+Vim vpc.tf
+module "vpc" {
+  source = "terraform-aws-modules/vpc/aws"
+  name = "splunk-infra"
+  cidr = "10.10.0.0/16"
+
+  azs             = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  private_subnets = ["10.10.1.0/24", "10.10.2.0/24", "10.10.3.0/24"]
+  public_subnets  = ["10.10.101.0/24", "10.10.102.0/24", "10.10.103.0/24"]
+
+  enable_nat_gateway = true
+  single_nat_gateway = true
+  enable_vpn_gateway = false
+  enable_dns_hostnames = true
+
+  public_subnet_tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                      = 1
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"             = 1
+  }
+
+}
+
+
+vim eks.tf
+
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "19.15.3"
+
+  cluster_name    = local.cluster_name
+  cluster_version = "1.31"
+
+  vpc_id                         = module.vpc.vpc_id
+  subnet_ids                     = module.vpc.private_subnets
+  cluster_endpoint_public_access = true
+
+  eks_managed_node_group_defaults = {
+    ami_type = "AL2_x86_64"
+
+  }
+
+  eks_managed_node_groups = {
+    one = {
+      name = "splunk-forwarder"
+      instance_types = ["t3.medium"]
+
+      min_size     = 1
+      max_size     = 3
+      desired_size = 2
+    }
+    
+  }
+}
+
+
+terraform init
+terraform plan
+terraform apply  -auto-approve
+
+✅ EKS Cluster is created!
+
+
