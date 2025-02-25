@@ -1,0 +1,198 @@
+DevOps Day2day Activities: Kubernetes issues Solved
+Debugging Common Pod Issues in AWS EKS
+Common pod issues:
+1.	CrashLoopBackOff (Config Prob)
+2.	ImagePullBackOff  (image name Prob)
+3.	Insufficient Resources (status 0/1  ‘pending’) memory+cpu
+4.	Readiness Probe Failure (Readiness time Prob)
+5.	Liveness Probe Failure (Health Check Prob)
+________________________________________
+Step 1: Set Up AWS EKS Cluster
+1.	Install Prerequisites:
+o	Install awscli, kubectl, and eksctl.
+o	Configure AWS CLI with your credentials:
+aws configure
+2.	Create an EKS Cluster:
+Use eksctl to create a cluster:
+eksctl create cluster --name my-eks-cluster --region us-east-1 --nodegroup-name my-nodes --node-type t3.medium --nodes 2
+3.	Verify Cluster:
+Check if the cluster is running:
+kubectl get nodes
+________________________________________
+Step 2: Deploy Pods with Common Issues
+We will create Kubernetes manifests for pods with common issues.
+1. CrashLoopBackOff
+Create a pod that crashes immediately:
+vim crashloop-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crashloop-pod
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    args: ["sleep", "10"]  # Container exits after 10 seconds
+
+Apply the manifest:
+kubectl apply -f crashloop-pod.yaml
+
+2. ImagePullBackOff
+Create a pod with an invalid image name:
+vim imagepullback-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: imagepullback-pod
+spec:
+  containers:
+  - name: invalid-image
+    image: invalid-image-name
+Apply the manifest:
+kubectl apply -f imagepullback-pod.yaml
+3. Insufficient Resources
+Create a pod requesting more resources than available:
+vim insufficient-resources-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insufficient-resources-pod
+spec:
+  containers:
+  - name: stress
+    image: busybox
+    resources:
+      requests:
+        memory: "10Gi"
+        cpu: "4"
+
+Apply the manifest:
+kubectl apply -f insufficient-resources-pod.yaml
+
+4. Readiness Probe Failure
+Create a pod with a failing readiness probe:
+vim readiness-failure-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: readiness-failure-pod
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    readinessProbe:
+      httpGet:
+        path: /nonexistent
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 10
+Apply the manifest:
+kubectl apply -f readiness-failure-pod.yaml
+5. Liveness Probe Failure
+Create a pod with a failing liveness probe:
+vim liveness-failure-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-failure-pod
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    args: ["sh", "-c", "touch /tmp/healthy && sleep 30 && rm -rf /tmp/healthy && sleep 600"]
+    livenessProbe:
+      exec:
+        command: ["cat", "/tmp/healthy"]
+      initialDelaySeconds: 5
+      periodSeconds: 5
+
+Apply the manifest:
+kubectl apply -f liveness-failure-pod.yaml
+________________________________________
+Step 3: Debugging Pod Issues
+1. Debugging CrashLoopBackOff
+Check pod status:
+kubectl get pods
+Describe the pod to find the issue:
+kubectl describe pod crashloop-pod
+Fix the issue by updating the args in the manifest to keep the container running:
+args: ["sleep", "3600"]
+Reapply the manifest:
+kubectl replace --force -f crashloop-pod.yaml
+kubectl apply -f crashloop-pod.yaml
+2. Debugging ImagePullBackOff
+Check pod status:
+kubectl get pods
+Describe the pod:
+kubectl describe pod imagepullback-pod
+Fix the issue by updating the image name in the manifest:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: imagepullback-pod
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    args: ["sleep", "3600"]
+
+Reapply the manifest:
+kubectl apply -f imagepullback-pod.yaml
+3. Debugging Insufficient Resources
+Check pod status:
+kubectl get pods
+Describe the pod:
+kubectl describe pod insufficient-resources-pod
+Fix the issue by reducing resource requests in the manifest:
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insufficient-resources-pod
+spec:
+  containers:
+  - name: stress
+    image: busybox
+    command: ["sh", "-c", "sleep 3600"]
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+
+Reapply the manifest:
+kubectl apply -f insufficient-resources-pod.yaml
+4. Debugging Readiness Probe Failure
+Check pod status:
+kubectl get pods
+Describe the pod:
+kubectl describe pod readiness-failure-pod
+Fix the issue by updating the readiness probe path in the manifest:
+readinessProbe:
+  httpGet:
+    path: /
+    port: 80
+Reapply the manifest:
+kubectl apply -f readiness-failure-pod.yaml
+5. Debugging Liveness Probe Failure
+Check pod status:
+kubectl get pods
+Describe the pod:
+kubectl describe pod liveness-failure-pod
+Fix the issue by updating the liveness probe command in the manifest:
+livenessProbe:
+  exec:
+    command: ["sh", "-c", "sleep 3600"]
+Reapply the manifest:
+kubectl apply -f liveness-failure-pod.yaml
+________________________________________
+Step 4: Clean Up
+Delete the EKS cluster:
+eksctl delete cluster --name my-eks-cluster --region us-east-1
+________________________________________
+Summary
+This project demonstrated how to:
+1.	Set up an AWS EKS cluster.
+2.	Deploy pods with common issues.
+3.	Debug and fix these issues effectively.
+By following this guide, you can gain hands-on experience in troubleshooting Kubernetes pods in an AWS EKS environment. 
+
