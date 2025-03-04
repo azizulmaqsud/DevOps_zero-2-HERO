@@ -1,0 +1,425 @@
+DevOps Real-time Project: K8s A-z Mastery
+Deploying Kubernetes on AWS using Kubeadm: End-to-End Setup
+________________________________________
+Project Overview
+In this project, we will deploy a Kubernetes cluster on Amazon Web Services (AWS) using kubeadm. Since kubeadm does not provision resources, we will first set up the required infrastructure on AWS, including virtual machines, networking, and security groups. Then, we will install kubeadm, initialize the Kubernetes master node, join worker nodes, and configure networking.
+________________________________________
+Project Roadmap
+Step 1: Provision AWS Infrastructure
+✅ Create EC2 Instances
+•	Log in to AWS Management Console.
+•	Navigate to EC2 > Launch Instance and create three EC2 instances:
+o	1 Master Node (t2.medium, Ubuntu 20.04)
+o	2 Worker Nodes (t2.medium, Ubuntu 20.04)
+•	Create a security group (k8s-sg) with the following rules:
+o	Port 22 (SSH) – Allow access from your IP
+o	Port 6443 (Kubernetes API Server) – Allow from worker nodes
+o	Port 10250, 10255 (Kubelet API) – Allow from all cluster nodes
+o	Port 179 (Calico networking) – Allow from all cluster nodes
+o	Port 2379-2380 (etcd) – Allow from master and workers
+✅ Attach IAM Role (Optional)
+•	Create an IAM role with AmazonEC2FullAccess for Kubernetes to manage EC2 resources.
+________________________________________
+Step 2: Install Dependencies on the Master Node
+💻 SSH into the Master Node
+ssh -i kubeadm-key.pem ubuntu@<Master_Node_Public_IP>
+📌 Update System and Install Required Packages
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl apt-transport-https ca-certificates software-properties-common
+📌 Install Docker
+sudo apt install -y docker.io
+sudo systemctl enable docker && sudo systemctl start docker
+📌 Install Kubernetes Packages (kubeadm, kubelet, and kubectl)
+sudo apt install curl apt-transport-https -y 
+curl -fsSL  https://packages.cloud.google.com/apt/doc/apt-key.gpg|sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/k8s.gpg 
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+******
+sudo apt -y install curl apt-transport-https
+curl  -fsSL  https://packages.cloud.google.com/apt/doc/apt-key.gpg|sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/kubernetes.gpg
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+Step 2 - Install kubelet, kubeadm and kubectl https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/  
+sudo apt-get update
+# apt-transport-https may be a dummy package; if so, you can skip that package
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+sudo systemctl enable --now kubelet
+
+kubeadm version
+kubectl version --client
+kubelet –version
+
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+sudo swapoff -a
+sudo vim  /etc/fstab
+#/swap.img	none	swap	sw	0	0
+sudo mount -a
+free -h
+# Enable kernel modules and configure sysctl.
+sudo modprobe overlay
+sudo modprobe br_netfilter
+
+# Add some settings to sysctl
+sudo tee /etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+sudo sysctl --system
+# Add repo and Install packages
+sudo apt update
+sudo apt install -y curl gnupg2 software-properties-common apt-transport-https ca-certificates
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/docker-archive-keyring.gpg
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+sudo apt update
+sudo apt install -y containerd.io docker-ce docker-ce-cli
+
+# Create required directories 
+sudo mkdir -p /etc/systemd/system/docker.service.d
+
+# Create daemon json config file
+sudo tee /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
+}
+EOF
+
+# Start and enable Services
+sudo systemctl daemon-reload 
+sudo systemctl restart docker
+sudo systemctl enable docker
+
+sudo -i
+
+# Ensure you load modules
+sudo modprobe overlay
+sudo modprobe br_netfilter
+
+# Set up required sysctl params
+sudo tee /etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+# Reload sysctl
+sudo sysctl --system
+
+# Add Cri-o repo
+
+OS="xUbuntu_20.04"
+VERSION=1.28
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+echo "deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$VERSION/$OS/ /" > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$VERSION.list
+curl -L https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable:cri-o:$VERSION/$OS/Release.key | apt-key add -
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/$OS/Release.key | apt-key add -
+
+# Install CRI-O 
+sudo apt update
+sudo apt install cri-o cri-o-runc -y
+
+# Update CRI-O CIDR subnet
+sudo sed -i 's/10.85.0.0/172.24.0.0/g' /etc/cni/net.d/100-crio-bridge.conf
+sudo sed -i 's/10.85.0.0/172.24.0.0/g' /etc/cni/net.d/100-crio-bridge.conflist
+
+# Start and enable Service
+sudo systemctl daemon-reload
+sudo systemctl restart crio
+sudo systemctl enable crio
+sudo systemctl status crio
+
+
+
+
+
+________________________________________
+Step 3: Initialize the Kubernetes Cluster
+kubeadm version
+kubectl version --client
+kubelet --version
+sudo kubeadm init --pod-network-cidr=192.168.0.0/16
+Initialize master node
+lsmod | grep br_netfilter
+sudo systemctl enable kubelet 
+sudo kubeadm config images pull --cri-socket unix:///var/run/crio/crio.sock
+create cluster
+sudo sysctl -p
+sudo kubeadm init \
+  --pod-network-cidr=172.24.0.0/16 \
+  --cri-socket unix:///var/run/crio/crio.sock
+
+vim  join.txt
+
+export KUBECONFIG=/etc/kubernetes/admin.conf 
+kubectl cluster-info 
+
+📌 Set Up kubectl for the Ubuntu User
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+📌 Deploy the Pod Network (Weave CNI)
+kubectl apply -f https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')
+________________________________________
+Step 4: Add Worker Nodes to the Cluster
+🔑 Retrieve the Join Command from Master Node
+sudo kubeadm init --cri-socket unix:///var/run/containerd/containerd.sock --pod-network-cidr=192.168.0.0/16
+Step 6 - Install Kubernetes Network Plugin
+Copy the Weaveworks installation command from this URL and then run it. https://www.weave.works/docs/net/latest/kubernetes/kube-addon/ 
+kubectl apply –f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+Install Kubernetes in the kubernetes-worker-1 Node
+Carefully repeat the Kubernetes installation guide from step 1 to step 4 
+Remember to change the Worker hostname into kworker-1
+Then proceed to the next steps
+Join the kubernetes-worker-1 Node in the K8s Cluster
+Get the join command stored in the join.txt file in the kmaster node and run it with the flag add with kubeadm join token --cri-socket /var/run/crio/crio.sock
+
+
+📌 SSH into each Worker Node and Run the Join Command
+sudo kubeadm join <Master_Node_IP>:6443 --token <token> --discovery-token-ca-cert-hash sha256:<hash>
+________________________________________
+Step 5: Verify the Cluster
+📌 Check Node Status
+kubectl get nodes
+Expected Output:
+NAME     STATUS   ROLES           AGE   VERSION
+master   Ready    control-plane   5m    v1.26.0
+worker1  Ready    <none>          3m    v1.26.0
+worker2  Ready    <none>          3m    v1.26.0
+📌 Check Running Pods
+kubectl get pods -A
+________________________________________
+Bonus: Deploy an Application on Kubernetes
+🚀 Deploy a Sample Nginx Application
+kubectl create deployment nginx --image=nginx
+kubectl expose deployment nginx --port=80 --type=NodePort
+kubectl get svc nginx
+Access the application by navigating to:
+http://<Worker_Node_Public_IP>:<NodePort>
+________________________________________
+At this stage
+Here, we successfully deployed Kubernetes on AWS using kubeadm. We:
+✅ Provisioned EC2 instances
+✅ Installed kubeadm, kubelet, and kubectl
+✅ Initialized a Kubernetes cluster
+✅ Joined worker nodes
+✅ Deployed a network plugin
+✅ Verified the cluster status
+✅ Deployed a test application
+🎥 Next Steps:
+
+1.	Check the status of nodes and pods:
+kubectl get nodes
+kubectl get pods -n kube-system
+o	The master node should now be Ready.
+________________________________________
+Step 6: Add Worker Nodes to the Cluster
+1.	On the master node, copy the join command output from kubeadm init.
+Example:
+kubeadm join <master-ip>:6443 --token <token> --discovery-token-ca-cert-hash sha256:<hash>
+2.	Run the join command on each worker node.
+________________________________________
+Step 7: Verify Cluster Setup
+•	Check the worker nodes:
+kubectl get nodes
+o	The worker nodes should now be Ready.
+•	Check the running pods:
+kubectl get pods -n kube-system
+________________________________________
+Step 8: Deploy a Test Application
+1.	Create a simple Nginx deployment:
+kubectl create deployment nginx --image=nginx
+2.	Expose the deployment as a service:
+kubectl expose deployment nginx --port=80 --type=NodePort
+3.	Get the service details:
+kubectl get svc nginx
+o	Note the NodePort assigned to the service.
+4.	Access Nginx using a worker node's public IP:
+curl http://<worker-node-ip>:<node-port>
+________________________________________
+Step 9: Configure Kubernetes Dashboard (Optional)
+1.	Deploy the Kubernetes Dashboard:
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+2.	edit type: nodePort
+kubectl edit svc kubernetes-dashboard -n kubernetes-dashboard
+then in browser <master ip>:<nodeport>
+3.	Create an admin user:
+kubectl create serviceaccount admin-user -n kube-system
+4.	Bind the user to the cluster role:
+kubectl create clusterrolebinding admin-user-binding --clusterrole=cluster-admin --serviceaccount=kube-system:admin-user
+5.	Get the access token:
+kubectl create token admin-user -n kube-system
+6.	Access the dashboard:
+Use the token to access dashboard
+
+________________________________________
+Step 10: Automate Kubernetes Deployment with Ansible
+To automate the Kubernetes setup, you can use Ansible to configure instances, install dependencies, and join the cluster.
+________________________________________
+Ansible integration
+
+Here's an Ansible playbook to automate the Kubernetes cluster setup using Kubeadm on AWS EC2 instances. The playbook will:
+✅ Install required dependencies (Docker, Kubeadm, Kubelet, Kubectl)
+✅ Initialize the Kubernetes master node
+✅ Configure the worker nodes to join the cluster
+✅ Install the Weave CNI plugin
+________________________________________
+📌 Folder Structure
+k8s-setup/
+├── inventory.ini
+├── playbook.yml
+├── roles/
+│   ├── common/
+│   │   ├── tasks/main.yml
+│   ├── master/
+│   │   ├── tasks/main.yml
+│   ├── worker/
+│   │   ├── tasks/main.yml
+________________________________________
+1️⃣ Inventory File (inventory.ini)
+Define the master and worker nodes in this file. Replace X.X.X.X with your actual AWS EC2 private IP addresses.
+[master]
+master ansible_host=X.X.X.X ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/my-key.pem
+
+[workers]
+worker1 ansible_host=X.X.X.X ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/my-key.pem
+worker2 ansible_host=X.X.X.X ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/my-key.pem
+________________________________________
+2️⃣ Main Ansible Playbook (playbook.yml)
+- name: Kubernetes Cluster Setup using Kubeadm
+  hosts: all
+  become: yes
+  roles:
+    - common
+
+- name: Initialize Master Node
+  hosts: master
+  become: yes
+  roles:
+    - master
+
+- name: Join Worker Nodes
+  hosts: workers
+  become: yes
+  roles:
+    - worker
+________________________________________
+3️⃣ Common Role (roles/common/tasks/main.yml)
+This installs Docker and Kubernetes components on both master and worker nodes.
+- name: Update system and install dependencies
+  apt:
+    update_cache: yes
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - gnupg
+    state: present
+
+- name: Install Docker
+  apt:
+    name: docker.io
+    state: present
+
+- name: Enable Docker service
+  systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+- name: Add Kubernetes GPG key
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes repository
+  shell: |
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+    apt update
+
+- name: Install Kubernetes components
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+
+- name: Enable Kubelet service
+  systemd:
+    name: kubelet
+    enabled: yes
+________________________________________
+4️⃣ Master Node Role (roles/master/tasks/main.yml)
+This initializes the Kubernetes cluster on the master node.
+- name: Initialize Kubernetes Master
+  shell: |
+    kubeadm init --pod-network-cidr=192.168.0.0/16 | tee /tmp/kubeadm-init.out
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: Copy Kubernetes config to user home
+  shell: |
+    mkdir -p $HOME/.kube
+    cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    chown $(id -u):$(id -g) $HOME/.kube/config
+
+- name: Install Weave CNI
+  shell: |
+    kubectl apply -f https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')
+
+- name: Get join command
+  shell: |
+    kubeadm token create --print-join-command > /tmp/join_command.sh
+
+- name: Fetch join command for worker nodes
+  fetch:
+    src: /tmp/join_command.sh
+    dest: ./join_command.sh
+    flat: yes
+________________________________________
+5️⃣ Worker Node Role (roles/worker/tasks/main.yml)
+This makes worker nodes join the Kubernetes cluster.
+- name: Copy join command to worker nodes
+  copy:
+    src: ./join_command.sh
+    dest: /tmp/join_command.sh
+    mode: '0755'
+
+- name: Join Kubernetes Cluster
+  shell: sh /tmp/join_command.sh
+________________________________________
+6️⃣ Running the Ansible Playbook
+1.	SSH into your bastion host or local machine.
+2.	Navigate to the project directory:
+cd k8s-setup
+3.	Run the playbook:
+ansible-playbook -i inventory.ini playbook.yml
+________________________________________
+✨ Final Verification
+Once the playbook completes:
+1.	SSH into the master node:
+ssh -i ~/.ssh/my-key.pem ubuntu@<MASTER_NODE_IP>
+2.	Check the nodes:
+kubectl get nodes
+o	You should see master and worker nodes in Ready state. 🎯
+________________________________________
+✅ Summary
+With this Ansible playbook, you can fully automate Kubernetes cluster setup on AWS using Kubeadm.
+
+
+
