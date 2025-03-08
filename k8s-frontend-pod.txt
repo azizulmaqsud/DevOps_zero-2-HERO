@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: dev
+  labels:
+    app: frontend
+  name: frontend
+spec:
+  containers:
+  - image: azizul2go/two-tier-frontend-image:v2
+    name: frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: dev
+  labels:
+    app: frontend
+  name: frontend-svc
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 30005
+  selector:
+    app: frontend
