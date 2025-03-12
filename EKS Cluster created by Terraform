@@ -1,6 +1,5 @@
 Real-time DevOps Day2day
-How to Create a Cluster at AWS 
-Using Terraform
+How to Create a Cluster at AWS Using Terraform
 
 Basic components:
 local.tf       		Cluster Name
