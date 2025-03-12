@@ -43,6 +43,8 @@ curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stabl
 chmod +x kubectl
 sudo mv kubectl /usr/local/bin/
 
+aws configure
+
 Step 2: Deploy Kubernetes (EKS) for Containerized Apps
 1.	Create an EKS Cluster using Terraform:
 vim locals.tf
