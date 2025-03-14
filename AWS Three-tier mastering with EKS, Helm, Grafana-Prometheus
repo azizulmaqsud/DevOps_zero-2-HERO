@@ -1,0 +1,493 @@
+DevOps High-Level Project: 
+Mastering AWS Three-Tier Deployment 
+with 
+EKS, CloudFormation, Prometheus & Garfana Monitoring: A Complete Hands-on Implementation
+Project roadmap
+	Create an EC2 server
+	Install and configure AWS CLI in the EC2 server
+	Install eksctl and kubectl
+	Create a cluster using eksctl
+	Install Helm
+	Install MySQL using Helm and mount EBS volume
+	Configure the MySQL database
+	Build the Two-tier Application (with Database) Backend
+	Push the Docker image in the Dockerhub
+	Build the Two-tier Application  (with Database) Frontend
+	Push the Docker image in the Dockerhub
+	Create a deployment and a service for the backend in the K8s cluster
+	Create a deployment and a service for the frontend in the K8s cluster
+	View the application running
+	Incorporate Prometheus and Grafana in the stack for logging and monitoring
+
+Create a Bastion Server
+Create ec2 named bastion, ubuntu AMI, security group named EKS (allow all traffic)
+Connect with mobaxterm
+sudo apt update && sudo apt -y full-upgrade
+Get AWS cli installation command from  https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+sudo apt install unzip
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+IAM >users  eks-user > Attach policies directly > AdministratorAccess  > create access key
+aws configure 
+ aws s3 ls
+Create an EKS K8S Cluster
+Get the eksctl installation commands from
+https://eksctl.io/installation/ 
+# for ARM systems, set ARCH to: `arm64`, `armv6` or `armv7`
+ARCH=amd64
+PLATFORM=$(uname -s)_$ARCH
+
+curl -sLO "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$PLATFORM.tar.gz"
+
+# (Optional) Verify checksum
+curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_checksums.txt" | grep $PLATFORM | sha256sum --check
+
+tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp && rm eksctl_$PLATFORM.tar.gz
+
+sudo mv /tmp/eksctl /usr/local/bin
+eksctl version
+Get kubectl latest release and the installation command
+ https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+Get the latest release 
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 
+Install kubectl 
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+kubectl version
+Create an EKS Cluster
+Create a cluster.yaml file to declare cluster configuration 
+vim cluster.yaml
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: mar-24-eks
+  region: us-east-1
+nodeGroups:
+  - name: ng-1
+    instanceType: t2.medium
+    desiredCapacity: 2
+
+---
+    iam:
+      withAddonPolicies:
+        albIngress: true
+availabilityZones: ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: june-24-eks
+  region: us-east-1
+
+nodeGroups:
+  - name: ng-1
+    instanceType: t2.medium
+    desiredCapacity: 4
+
+eksctl create cluster  -f  cluster.yaml
+kubectl get nodes    (see 4 nodes in the cluster)
+Go to the CloudFormation dashboard in the AWS. You'll see two stacks have been created.
+You can go to the Events tab to view the history of resources creation
+vim  ~/.bashrc
+Add the alias command at the tail of the file.  
+alias k='kubectl'
+alias kgp='kubectl get pods'
+alias kgs='kubectl get svc'
+Apply the changes
+source  ~/.bashrc
+
+Download eksctl_Linux_amd64.tar.gz   from https://github.com/eksctl-io/eksctl/releases/tag/v0.182.0 then upload to mobaxterm 
+tar -xzf eksctl_Linux_amd64.tar.gz
+cd /usr/local/bin 
+sudo rm -rf eksctl
+cd
+sudo mv eksctl /usr/local/bin
+---
+Install MySQL using Helm and mount EBS volume
+Copy the Helm installation ubuntu commands from https://helm.sh/docs/intro/install/
+
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+Add Bitnami Chart
+Add bitnami charts into the list of Helm repo and update the repositories. 
+helm repo add bitnami https://charts.bitnami.com/bitnami 
+helm repo list 
+helm repo update
+Managing the Amazon EBS CSI driver as an Amazon EKS add-on
+Visit the following documentation URL to manage the Amazon EBS CSI driver as an Amazon EKS add-on https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html  
+Copy the command > Open the Creating an IAM OIDC provider in a new tab 
+Open the Creating the Amazon EBS CSI driver IAM role in a new tab
+To see the required platform version, run the previously copied command. 
+aws eks describe-addon-versions --addon-name aws-ebs-csi-driver
+Go to the Creating an IAM OIDC provider 
+ 
+https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html
+export cluster_name=dec-24-eks
+oidc_id=$(aws eks describe-cluster --name dec-24-eks --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f 5)
+aws iam list-open-id-connect-providers | grep $oidc_id | cut -d "/" -f4
+echo $oidc_id
+eksctl utils associate-iam-oidc-provider --cluster dec-24-eks --approve
+Visit the following URL to get the command for Creating the Amazon EBS CSI driver IAM role 
+https://docs.aws.amazon.com/eks/latest/userguide/csi-iam-role.html
+Run the copied commands. Remember to insert your own cluster name after the --cluster argument
+eksctl create iamserviceaccount \
+    --name ebs-csi-controller-sa \
+    --namespace kube-system \
+    --cluster dec-24-eks \
+    --role-name AmazonEKS_EBS_CSI_DriverRole \
+    --role-only \
+    --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+    --approve
+
+---
+eksctl delete iamserviceaccount     --name ebs-csi-controller-sa     --namespace kube-system     --cluster dec-24-eks
+---
+Go to the IAM dashboard > Roles > new role AmazonEKS_EBS_CSI_DriverRole appeared on top. Go inside that role. Copy ARN
+Copy the command to create add-on from  https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html
+Replace the arn with your own IAM Role ARN and run the command
+eksctl create addon --name aws-ebs-csi-driver --cluster dec-24-eks --service-account-role-arn arn:aws:iam::<Your_ARN>:role/AmazonEKS_EBS_CSI_DriverRole --force
+See that multiple pod appear in the kube-system namespace
+kubectl get pods  -n  kube-system
+In the CloudFormation, there should be a new stack of ebs-csi-controller
+vim ebs-sc.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+volumeBindingMode: WaitForFirstConsumer
+
+(optional)
+vim storage.yaml
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp2
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+
+# if issues then delete
+helm uninstall mysql -n mysql --no-hooks
+
+Prepare the MySQL database
+ vim  mysql-values.yaml
+Write the following config 
+auth:
+  rootPassword: "hello123"
+  createDatabase: true
+  database: "twotier"
+  username: "twotieruser"
+  password: "secretpass"
+primary:
+  persistence:
+    enabled: true
+    storageClass: "ebs-sc"
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update 
+Install MySQL in the mysql namespace and with the mysql-values.yaml configuration 
+helm install mysql oci://registry-1.docker.io/bitnamicharts/mysql -n mysql --create-namespace -f mysql-values.yaml
+See Mysql pod running  
+kubectl get pods  -n  mysql
+
+kubectl get pvc -n mysql
+kubectl get pv -n mysql
+---
+
+Get inside the mysql pod   
+kubectl exec -n mysql -it mysql-0 -- bash
+Go to the mysql monitor where you can execute mysql queries. 
+mysql -u root -p 
+Password hello123
+See that the twotier database has been created.
+Run the following commands to create the tables in the database
+show databases;
+use twotier;
+CREATE TABLE users (id int NOT NULL AUTO_INCREMENT, email varchar(100) NOT NULL, password varchar(100) NOT NULL, primary key(id)); 
+CREATE TABLE history (id int NOT NULL AUTO_INCREMENT, number varchar(100) NOT NULL, response varchar(100) NOT NULL, type varchar(30) NOT NULL, time timestamp default current_timestamp, primary key(id)); 
+show tables;
+ 
+Create a user in the users table and view the table 
+insert into users (email, password) values ("hello@example.com", "hello123"); 
+select * from users; 
+Exit from MySQL and the pod. 
+exit 
+exit
+
+Create Two-tier Application (with Database) Backend Docker Image
+--------------------------------------------------------------------------------------------------------------------
+Clone the two tier application git repo 
+git clone https://github.com/azizulmaqsud/two-tier-app.git
+cd two-tier-application 
+ls 
+cd backend 
+vim .env
+MYSQL_HOST='mysql.mysql.svc.cluster.local'
+MYSQL_USER='twotieruser'
+MYSQL_PASSWORD='secretpass'
+MYSQL_DB='twotier'
+Install docker  
+sudo apt install docker.io -y
+Login into docker with your Dockerhub username and password 
+sudo docker login
+Write a Dockerfile for the backend 
+vim Dockerfile
+Write the following config in the Dockerfile, then save it. 
+FROM python
+WORKDIR /app
+RUN apt-get update -y && \
+apt-get install -y python3-pip python3-dev libmariadb-dev pkg-config && \
+apt-get clean && \
+rm -rf /var/lib/apt/lists/*
+COPY . .
+RUN pip install -r requirements.txt
+EXPOSE 5000
+CMD ["flask", "run", "--host", "0.0.0.0"]
+
+(optional)
+FROM python:3.8.7-slim-buster
+WORKDIR /app
+RUN apt-get update -y
+RUN apt-get install -y python-pip python-dev libmariadb-dev pkg-config
+COPY ./requirements.txt .
+RUN pip install -r requirements.txt
+ADD . .
+EXPOSE 5000
+CMD flask run  --host=0.0.0.0
+
+---
+Build the backend docker image 
+sudo docker build -t  azizul2go/n-tier-backend:v1 .
+Push the docker image into Dockerhub 
+sudo docker push azizul2go/n-tier-backend:v1
+
+Create Two-tier Application  Frontend Docker Image
+Go to the frontend directory and write a Dockerfile 
+cd ../frontend 
+vim Dockerfile
+Write the following config in the Dockerfile, then save it
+FROM node:11.10.0-alpine AS build-stage
+RUN apk add --update --no-cache \
+     python \
+     make \
+     g++
+COPY . /src
+WORKDIR /src
+COPY ./package* ./
+RUN npm install
+RUN yarn build
+FROM nginx:latest
+RUN rm -rf /usr/share/nginx/html
+RUN mkdir /usr/share/nginx/html
+COPY --from=build-stage /src/build/ /usr/share/nginx/html/
+COPY default.conf /etc/nginx/conf.d/
+EXPOSE 80
+
+(Optiinal)
+sudo apt install npm
+npx browserslist@latest --update-db
+To clean unused all Docker ps:
+df -h
+sudo docker images -a
+sudo docker image prune -a
+sudo docker ps -a
+sudo docker container prune
+sudo docker ps -a
+sudo docker build -t  azizul2go/two-tier-frontend-mar-25:v1 .
+
+
+vim  default.conf
+Add the /login and /get-history endpoints. 
+Change the proxy pass into http://backend-svc:5000 for all the endpoints.
+vim  .env
+Keep the BACKEND_API_URL blank
+Build the frontend docker image 
+sudo docker build -t azizul2go/twotier-tier-frontend-mar-25:v2 .
+Push the docker image into Dockerhub 
+sudo docker push azizul2go/n-tier-frontend:v1
+
+Create Backend Deployment
+Create twotier namespace 
+kubectl create ns twotier
+--- 
+(Optional)
+cd
+kubectl get deploy -n twotier
+kubectl delete deploy backend -n twotier
+kubectl get deploy -n twotier
+kubectl get pod -n twotier
+kubectl create deployment backend --image azizul2go/n-tier-backend:v1 -o yaml --dry-run=client -n twotier --port 5000 > backend.yaml
+kubectl apply -f backend.yaml
+kubectl get pod -n twotier
+---
+cd    (go to home dir)
+Create a backend deployment file and view it 
+kubectl create deployment backend --image azizul2go/n-tier-backend:v1 -o yaml --dry-run=client -n twotier --port 5000 > backend.yaml
+ cat backend.yaml
+Apply the deployment and see the running pods 
+kubectl apply -f backend.yaml 
+kubectl get pods -n twotier
+Create a service for the deployment and copy the configurations 
+kubectl expose deployment backend --name backend-svc --type NodePort --port 5000 --dry-run=client -n twotier -o yaml 
+Copy the output configuration
+vim backend.yaml
+Put separator (---) and below that paste the copied configuration of the backend service.
+ 
+See the screenshot for more help
+Run the service and view the running pods and services 
+kubectl apply -f backend.yaml 
+kubectl get pods -n twotier 
+kubectl get svc -n twotier
+Create Frontend Deployment
+Create a frontend deployment file and run it 
+kubectl create deployment frontend --image azizul2go/n-tier-frontend:v1 -o yaml --dry-run=client -n twotier --port 80 > frontend.yaml 
+kubectl apply -f frontend.yaml 
+kubectl get pods -n twotier
+Create a service for the deployment and copy the configurations 
+kubectl expose deployment frontend --name frontend-svc --type NodePort --port 80 --dry-run=client -n twotier -o yaml 
+Copy the output configuration
+vim  frontend.yaml
+Put separator (---) and below that paste the copied configuration of the frontend service.
+kubectl apply -f frontend.yaml 
+kubectl get pods -n twotier 
+kubectl get svc -n twotier
+See that the frontend service is running at port <31111> in this case, it may be different for you. Take note of it as you will need the port number to run the frontend.
+
+Change Security Rules
+Select one of the cluster nodes. In the security tab, you will find two different security groups. We need to change the inbound rules of both of them. Open the security groups in new tabs.
+All traffic rule for both.
+
+View the application running
+Hit one of the cluster node's IP Address and the frontend port <Cluster_Node_IP>:<Frontend_PORT>
+You should see that the Two-tier Application v2 is running. The backend, frontend, and all the endpoints work.
+
+Incorporate Prometheus and Grafana in the stack for logging and monitoring
+------------------------------------------------------------------------------------------------------
+Create a namespace for monitoring 
+kubectl create ns monitoring 
+Add Prometheus charts in the helm repo. You can get the command from here https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack 
+Run the command
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm install my-kube-prometheus-stack prometheus-community/kube-prometheus-stack --version 69.8.2
+
+
+Go to
+https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html
+https://docs.aws.amazon.com/eks/latest/userguide/lbc-helm.html 
+---
+Follow this Installing the AWS Load Balancer Controller add-on page for the next steps. We will use the marked 3 commands in the screenshot next.
+curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json
+
+---
+curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.2/docs/install/iam_policy.json
+
+aws iam create-policy \
+    --policy-name AWSLoadBalancerControllerIAMPolicy \
+    --policy-document file://iam_policy.json
+
+eksctl create iamserviceaccount \
+  --cluster=dec-24-eks \
+  --namespace=kube-system \
+  --name=aws-load-balancer-controller \
+  --role-name AmazonEKSLoadBalancerControllerRole \
+  --attach-policy-arn=arn:aws:iam::<111122223333>:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve
+---
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update eks
+---
+Next, we need to add the eks-charts repo. Go back to the Installing the AWS Load Balancer Controller add-on page and copy these commands
+ 
+https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html
+
+Add, update the repositories and view the repo list 
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update 
+helm repo list
+
+Install the ALB Ingress Controller:
+
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=mar-25-eks-13 \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller
+
+(Optional)
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  --namespace kube-system \
+  --set clusterName=<your-cluster-name> \
+  --set serviceAccount.create=false \
+  --set region=<your-region> \
+  --set vpcId=<your-vpc-id> \
+  --set serviceAccount.name=aws-load-balancer-controller
+
+Verify deployment:
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+Find this command and copy it. Replace my-cluster with the name of your cluster. Run the command. Now see that there are aws-load-balancer-controller pods running in the kube-system namespace 
+kubectl get pods -n kube-system
+
+---
+If not found then
+
+helm uninstall aws-load-balancer-controller -n kube-system
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  --namespace kube-system \
+  --set clusterName=sep-eks-24 \
+  --set serviceAccount.create=true \
+  --set region=us-east-1 \
+  --set vpcId=vpc-03988ad84358c5b4b
+
+kubectl get pods -n kube-system
+---
+
+vim  prom-values.yaml
+
+grafana:
+  ingress:
+     enabled: true
+     ingressClassName: alb
+     annotations:
+       alb.ingress.kubernetes.io/scheme : internet-facing
+       alb.ingress.kubernetes.io/target-type : ip
+
+Release prometheus and grafana with the following command 
+
+helm install prom-graf prometheus-community/kube-prometheus-stack -n monitoring -f prom-values.yaml 
+See that multiple prom-graf pods have started to run in the monitoring namespace 
+kubectl get pods -n monitoring
+Visit your AWS Console and you should see a Load Balancer created there
+View the ingress running. 
+kubectl get ingress -n monitoring
+Copy the address of the running ingress. Visit ingress address
+Change security group at ALB, A record, all traffic inbound 
+The Grafana login screen should pop up. 
+Log in with the username admin  and password prom-operator
+
+Go to dashboards
+Expand General
+Go inside the Cluster dashboard
+See the visualization of the entire cluster including all the namespaces, services, and the pods running. You can play around in the dashboard to view different data
+Thank You
+
