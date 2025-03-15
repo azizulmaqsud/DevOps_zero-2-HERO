@@ -1,4 +1,3 @@
-Real-time DevOps Day2day
 How to Create a Cluster at AWS Using Terraform
 
 Basic components:
@@ -10,12 +9,12 @@ eks.tf			Desired size for Nodes
 Step 1: Launch EC2 Instance for the Application
 1.	Go to AWS Console > EC2 > Launch Instance.
 2.	Select Ubuntu 22.04 as the OS.
-3.	Choose an instance type (t2.medium recommended).
+3.	Choose an instance type t2.micro
 4.	Configure security groups:
 o	Allow port 80 for the web server.
 o	Allow port 22 for SSH access.
-o	Allow port 9997 (Splunk Forwarder data input).
-5.	Click Launch and download the key pair.
+
+Click Launch and download the key pair.
 
 vim install.sh
 
