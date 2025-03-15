@@ -79,7 +79,7 @@ resource "aws_eks_addon" "ebs-csi" {
     "terraform" = "true"
   }
 }
-Vim vpc.tf
+vim vpc.tf
 module "vpc" {
   source = "terraform-aws-modules/vpc/aws"
   name = "splunk-infra"
