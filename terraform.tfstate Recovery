@@ -1,0 +1,123 @@
+Terraform.tfstate deleted, 
+Then how to recover it? 
+Terraform disaster recovery with Terraform workspace
+This project provides a complete end-to-end solution for managing an EC2 instance using Terraform workspace. It includes:
+1.	Terraform configuration for creating an EC2 instance.
+2.	Workspaces for managing multiple environments (e.g., dev, qa, prod).
+3.	Disaster recovery simulation and recovery process for accidental .tfstate deletion.
+________________________________________
+Project Structure
+terraform-ec2-state-recovery/
+├── main.tf
+├── variables.tf
+├── terraform.tfvars
+├── outputs.tf
+├── environments/
+ ________________________________________
+Step-by-Step Implementation
+Step 1: Set Up Terraform Configuration
+1.	main.tf - Define the EC2 instance and AWS provider.
+provider "aws" {
+  region = var.aws_region
+}
+
+resource "aws_instance" "example" {
+  ami           = var.ami_id
+  instance_type = var.instance_type
+
+  tags = {
+    Name = "example-instance-${terraform.workspace}"
+  }
+}
+2.	variables.tf - Define input variables.
+variable "aws_region" {
+  description = "AWS region to deploy resources"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "ami_id" {
+  description = "AMI ID for the EC2 instance"
+  type        = string
+  default     = "ami-0c55b159cbfafe1f0" # Replace with a valid AMI ID
+}
+
+variable "instance_type" {
+  description = "Instance type for the EC2 instance"
+  type        = string
+  default     = "t2.micro"
+}
+3.	terraform.tfvars - Provide variable values.
+aws_region   = "us-east-1"
+ami_id       = "ami-0c55b159cbfafe1f0" # Replace with a valid AMI ID
+instance_type = "t2.micro"
+4.	outputs.tf - Output the EC2 instance ID.
+output "instance_id" {
+  description = "ID of the EC2 instance"
+  value       = aws_instance.example.id
+}
+________________________________________
+Step 2: Initialize and Apply Terraform Configuration
+1.	Initialize Terraform:
+terraform init
+2.	Create and switch to a new workspace (e.g., dev):
+terraform workspace new dev
+3.	Apply the configuration:
+terraform apply
+4.	Verify the workspace:
+terraform workspace list
+________________________________________
+Step 3: Simulate Accidental Deletion of .tfstate
+1.	Locate the .tfstate file:
+o	The state file is typically stored in terraform.tfstate or in a remote backend (e.g., S3).
+2.	Simulate accidental deletion: delete from workspace dev
+rm terraform.tfstate
+________________________________________
+Step 4: Recover from Accidental Deletion
+1.	Backup the State File (Prevention):
+o	Always back up your state file before making changes.
+o	Copy the state file to a backup directory:
+mkdir -p workspace-simulation/backup-tfstate
+cp terraform.tfstate workspace-simulation/backup-tfstate/
+2.	Recover the State File:
+o	If you have a backup, restore it:
+cp workspace-simulation/backup-tfstate/terraform.tfstate .
+3.	Reinitialize and Reapply:
+o	Reinitialize Terraform:
+terraform init
+o	Reapply the configuration:
+terraform apply
+
+If no backup then Recreate the State File
+Find EC2 Instance ID:
+aws ec2 describe-instances --query "Reservations[*].Instances[*].InstanceId" --output text
+Create a new empty state file:
+o	Terraform uses a JSON-based state file. You can create an empty state file manually.
+o	Run the following command to create an empty state file:
+echo '{"version": 1, "serial": 1, "resources": {}}' > terraform.tfstate
+Reinitialize Terraform:
+o	Reinitialize Terraform to set up the backend and providers:
+terraform init
+
+Re-import Resources into the State File
+1.	Re-import each resource:
+o	Use the terraform import command to re-import each resource into the state file.
+o	The syntax for terraform import is:
+terraform import <resource_type>.<resource_name> <resource_id>
+2.	Example: Re-import an EC2 Instance:
+o	If the EC2 instance ID is i-0abcd1234efgh5678, run:
+terraform import aws_instance.example i-0abcd1234efgh5678
+3.	Verify the state:
+o	After importing, check the state file to ensure the resource is added:
+terraform state list
+Reapply the Configuration
+1.	Run terraform plan:
+o	Check if the configuration matches the actual infrastructure:
+terraform plan
+2.	Run terraform apply:
+o	Apply the configuration to ensure everything is in sync:
+terraform apply
+
+Now, terraform.tfstate is Recovered. 
+Documented by: Azizul Maqsud 
+https://youtu.be/nA9o5q1VrYU?si=JVS5cyakXU8iZsTf 
