@@ -1,0 +1,664 @@
+Automated AWS Infrastructure Provisioning and Full-Stack  Deployment with Ansible & VPC Peering
+This is a comprehensive end-to-end project roadmap for using Ansible to automate the creation and management of AWS infrastructure, including EC2 instances, VPCs, key pairs, and deploying a two-tier application. Below is a step-by-step breakdown of the entire process, organized into logical sections for clarity.
+________________________________________
+Project Roadmap
+1.	Set Up the Ansible Server
+2.	Install Ansible and Configure AWS CLI
+3.	Create Key Pairs Using Ansible
+4.	Save the Generated Key Pair
+5.	Create a VPC with Ansible
+6.	Create Frontend (FE) and Backend (BE) Servers with Ansible
+7.	Create a VPC Peering Connection
+8.	Deploy the FE and BE Application with Ansible
+________________________________________
+Step 1: Set Up the Ansible Server
+1.1 Create a Bastion Host
+•	Launch an EC2 instance named ansible with the following configuration:
+o	AMI: Ubuntu
+o	Instance Type: t2.micro
+o	Security Group: Allow all traffic (for testing purposes).
+o	Key Pair: Use an existing key pair or create a new one.
+1.2 Connect to the Bastion Host
+•	Use MobaXterm or any SSH client to connect to the EC2 instance:
+ssh -i <key.pem> ubuntu@<public-ip>
+________________________________________
+Step 2: Install Ansible and Configure AWS CLI
+2.1 Install Ansible
+Update the system and install Ansible:
+sudo apt update && sudo apt -y full-upgrade
+sudo apt-get install software-properties-common -y
+sudo add-apt-repository --yes --update ppa:ansible/ansible
+sudo apt install python3-pip python3-boto3 ansible -y
+ansible --version
+
+vim ~/.bashrc
+export PATH=$PATH:/home/ubuntu/.local/bin
+exit
+ansible --version
+2.2 Install and Configure AWS CLI
+Install AWS CLI:
+sudo apt install unzip
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+rm -rf aws awscliv2.zip
+
+Configure AWS CLI:
+aws configure
+Provide your AWS Access Key, Secret Key, region, and output format.
+________________________________________
+Step 3: Create Key Pairs Using Ansible
+3.1 Create a Playbook for Key Pair Creation
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  tasks:
+    - name: Create EC2 Keypair
+      ec2_key:
+        name: mykeypairansible
+      no_log: true
+      register: key_out
+ 
+    - name: Show task output
+      debug:
+        var: key_out
+3.2 Run the Playbook
+Execute the playbook:
+ansible-playbook keypair.yaml
+
+Verify the key pair in the AWS Console and check the saved .pem file:
+ls
+cat mykeypairansible.pem
+Step 4: Create a VPC with Ansible
+4.1 Create a Playbook for VPC Creation
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  tasks:
+    - name: Create a VPC with dedicated tenancy and a couple of tags
+      ec2_vpc_net:
+        name: ansible-vpc
+        cidr_block: 10.0.0.0/16
+        region: us-east-1
+      register: vpc_result
+
+    - name: Create Internet Gateway
+      ec2_vpc_igw:
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        state: present
+      register: igw
+
+    - name: Create Public Subnet for FE servers
+      ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        az: "us-east-1a"
+        cidr: 10.0.0.0/24
+        map_public: true
+        tags:
+          Name: Public Subnet
+      register: public_subnet
+
+    - name: Set up Public Subnet Route Table
+      ec2_vpc_route_table:
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        tags:
+          Name: Public RTB
+        subnets:
+          - "{{ public_subnet.subnet.id }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.gateway_id }}"
+      register: public_route_table
+
+    - name: Create Private Subnet for BE and DB servers
+      ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        az: "us-east-1a"
+        cidr: 10.0.1.0/24
+        tags:
+          Name: Private Subnet
+      register: private_subnet
+
+    - name: Create new NAT Gateway and allocate new EIP if a NAT Gateway does not yet exist in subnet
+      ec2_vpc_nat_gateway:
+        state: present
+        subnet_id: "{{ public_subnet.subnet.id }}"
+        wait: true
+        if_exist_do_not_create: true
+      register: nat
+
+    - name: Set up Private Subnet Route Table
+      ec2_vpc_route_table:
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        tags:
+          Name: Private RTB
+        subnets:
+          - "{{ private_subnet.subnet.id }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ nat.nat_gateway_id }}"
+      register: private_route_table
+
+    - name: Create Security Group with Rule Descriptions
+      ec2_group:
+        name: Ansible VPC SG
+        description: SG with rule descriptions
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        rules:
+          - proto: tcp
+            from_port: 0
+            to_port: 65535
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all
+      register: sg
+
+4.2 Run the Playbook
+Execute the playbook:
+ansible-playbook vpc.yaml -v
+Step 5: Create Roles for Frontend, Backend & VPC
+To organize the project, create a roles directory and under that directory create the following frontend, backend and vpc directories
+mkdir roles
+cd roles
+mkdir frontend
+mkdir backend
+mkdir vpc
+cd vpc
+mkdir tasks
+cd tasks
+In the vpc directory create a tasks directory and move our vpc.yaml file there with the name main.yaml
+mv ../../../vpc.yaml main.yaml
+ 
+Edit the main.yaml file
+cat main.yaml
+copy the following part of the config out of the file then delete it in vim.
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  tasks:
+
+vim main.yaml
+- name: Create a VPC with dedicated tenancy and a couple of tags
+  ec2_vpc_net:
+    name: ansible-vpc
+    cidr_block: 10.0.0.0/16
+    region: us-east-1
+    tenancy: dedicated
+    tags:
+      Name: ansible-vpc
+  register: vpc_result
+
+- name: Create Internet Gateway
+  ec2_vpc_igw:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    state: present
+  register: igw
+
+- name: Create Public Subnet for FE servers
+  ec2_vpc_subnet:
+    state: present
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    az: "us-east-1a"
+    cidr: 10.0.0.0/24
+    map_public: true
+    tags:
+      Name: Public Subnet
+  register: public_subnet
+
+- name: Set up Public Subnet Route Table
+  ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    tags:
+      Name: Public RTB
+    subnets:
+      - "{{ public_subnet.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw.gateway_id }}"
+  register: public_route_table
+
+- name: Create Private Subnet for BE and DB servers
+  ec2_vpc_subnet:
+    state: present
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    az: "us-east-1a"
+    cidr: 10.0.1.0/24
+    tags:
+      Name: Private Subnet
+  register: private_subnet
+
+- name: Create new NAT Gateway and allocate new EIP if a NAT Gateway does not yet exist in subnet
+  ec2_vpc_nat_gateway:
+    state: present
+    subnet_id: "{{ public_subnet.subnet.id }}"
+    wait: true
+    if_exist_do_not_create: true
+  register: nat
+
+- name: Set up Private Subnet Route Table
+  ec2_vpc_route_table:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    tags:
+      Name: Private RTB
+    subnets:
+      - "{{ private_subnet.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ nat.nat_gateway_id }}"
+  register: private_route_table
+
+- name: Create Security Group with Rule Descriptions
+  ec2_group:
+    name: Ansible VPC SG
+    description: SG with rule descriptions
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    rules:
+      - proto: tcp
+        from_port: 0
+        to_port: 65535
+        cidr_ip: 0.0.0.0/0
+        rule_desc: allow all
+  register: sg
+
+---
+cd ~
+vim playbook.yaml
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  roles:
+   - vpc
+ansible-playbook playbook.yaml
+
+Step 6: Create FE and BE Servers with Ansible
+5.1	Create Frontend Server
+In the roles/frontend directory create tasks directory and create a main.yaml file in there
+cd roles/frontend
+mkdir tasks
+cd tasks
+vim main.yaml
+- name: Create EC2 KeyPair
+  amazon.aws.ec2_key:
+    name: ansible-ec2-keypair
+  no_log: true
+  register: key_out
+
+- name: Show the Keypair contents
+  debug:
+    var: key_out.key.private_key
+  when: key_out.changed
+
+- name: Save the Private Key
+  copy:
+    content: "{{ key_out.key.private_key }}"
+    dest: ansible-key.pem
+    mode: '0600'
+  when: key_out.changed
+
+- name: Create Security Group
+  amazon.aws.ec2_group:
+    name: ansible-sg
+    description: "Security group for Ansible-created EC2 instance"
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    rules:
+      - proto: tcp
+        ports:
+          - 22
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        ports:
+          - 80
+        cidr_ip: 0.0.0.0/0
+  register: sg
+
+- name: Start an instance with a public IP address
+  amazon.aws.ec2_instance:
+    name: "frontend"
+    key_name: "{{ key_out.key.name }}"
+    vpc_subnet_id: "{{ public_subnet.subnet.id }}"
+    instance_type: t2.micro
+    security_group: "{{ sg.group_id }}"
+    network:
+      assign_public_ip: true
+    image_id: ami-0c7217cdde317cfec
+cd 
+vim playbook.yaml
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  roles:
+   - vpc
+   - frontend
+
+ansible-playbook playbook.yaml -v
+A frontend instance should be created with all the specified config
+
+5.2 Create Backend Server
+Create a playbook backend.yaml:
+Go to the roles/frontend directory and copy the tasks directory into the backend. Then edit the main.yaml file in the backend/tasks directory
+cd roles/frontend
+cp -r tasks/ ../backend
+cd ../backend
+cd tasks
+vim main.yaml
+- name: Create EC2 KeyPair
+  amazon.aws.ec2_key:
+    name: ansible-ec2-keypair
+  no_log: true
+  register: key_out
+
+- name: Show the Keypair contents
+  debug:
+    var: key_out.key.private_key
+  when: key_out.changed
+
+- name: Save the Private Key
+  copy:
+    content: "{{ key_out.key.private_key }}"
+    dest: ansible-key.pem
+    mode: '0600'
+  when: key_out.changed
+
+- name: Start a BE instance with a public IP address
+  amazon.aws.ec2_instance:
+    name: "Backend"
+    key_name: "{{ key_out.key.name }}"
+    vpc_subnet_id: "{{ private_subnet.subnet.id }}"
+    instance_type: t2.micro
+    security_group: "{{ sg.group_id }}"
+    network:
+      assign_public_ip: true
+    image_id: ami-0c7217cdde317cfec
+
+cd
+vim playbook.yaml
+Insert the following config with the backend as a newly added role
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  roles:
+    - vpc
+    - frontend
+    - backend 
+5.3 Run the Playbooks
+Execute the playbooks:
+ansible-playbook frontend.yaml
+ansible-playbook backend.yaml
+
+mkdir infra deployment
+Move the playbook.yaml file and roles directory into the infra directory. Then move the ansible-key.pem into the deployment directory
+mv playbook.yaml roles/ infra
+mv ansible-key.pem deployment/
+Step 6: Create VPC Peering Connection
+6.1 Manually Create VPC Peering
+Go to the AWS Console:
+Go to Peering connections in AWS console, and Create peering connection in order to establish connection between two different VPCs, give name = aws-ansible-peer, select default vpc 
+Select the ansible-vpc as Accepter. Create the peering connection
+Accept the request from the Action drop-down
+
+Select the route table of default VPC and edit the routes
+Add a route with the ansible-vpc CIDR as the destination and newly created peering connection as the Target.
+Save the changes.
+Select the route table of ansible-vpc and edit the routes
+Add a route with the default vpc CIDR as the destination and the newly created peering connection as the Target.
+Save the changes.
+Select the Private RTB of the ansible-vpc and edit the routes
+Add a route with the default-vpc CIDR as the destination and newly created peering connection as the Target.
+Save the changes.
+Select the Public RTB of the ansible-vpc and edit the routes
+Add a route with the default vpc CIDR as the destination and the newly created peering connection as the Target.
+Save the changes.
+Try to telnet to the Backend server private IP address. If telnet is successful, the VPC peering works properly
+6.2 Test Connectivity
+SSH into the frontend server and test connectivity to the backend server:
+telnet <backend-private-ip> 22
+Step 7: Deploy the FE and BE Application with Ansible
+7.1	Create Inventory File
+At home/ubuntu
+cd deployment
+vim hosts                         …. Inventory file
+[frontend]
+frontend_pvt_IP
+[backend]
+backend_pvt_IP
+[frontend:vars]
+ansible_ssh_private_key_file=ansible-key.pem
+ansible_ssh_user=ubuntu
+ 
+[backend:vars]
+ansible_ssh_private_key_file=ansible-key.pem
+ansible_ssh_user=ubuntu
+
+vim ansible.cfg
+[defaults]
+host_key_checking = False
+inventory = hosts
+
+mkdir roles
+cd roles
+mkdir -p backend/tasks
+mkdir -p frontend/tasks
+cd backend/tasks
+ vim main.yaml
+- name: Clone the repo for backend
+  git:
+    repo: 'https://github.com/azizulmaqsud/two-tier-app.git'
+    dest: /home/ubuntu/two-tier-app
+    update: yes
+    clone: yes
+  ignore_errors: true
+
+- name: Update the cache
+  become: yes
+  apt:
+    update_cache: yes
+
+- name: Install python and pip
+  become: yes
+  apt:
+    pkg:
+      - python3-pip
+      - python3-venv
+
+- name: Create virtual environment
+  become: yes
+  command: python3 -m venv /home/ubuntu/two-tier-app/backend/env
+  args:
+    creates: /home/ubuntu/two-tier-app/backend/env/bin/activate
+
+- name: Install the requirements
+  become: yes
+  pip:
+    requirements: /home/ubuntu/two-tier-app/backend/requirements.txt
+    virtualenv: /home/ubuntu/two-tier-app/backend/env
+
+# Running Flask using the full path to the binary inside the virtual environment
+- name: Run the backend
+  command: /home/ubuntu/two-tier-app/backend/env/bin/flask run --host 0.0.0.0
+  args:
+    chdir: /home/ubuntu/two-tier-app/backend
+  async: 1000
+  poll: 0
+
+--
+cd to pwd
+deployment$ 
+vim playbook.yaml
+- hosts: frontend
+  roles:
+    - frontend
+
+- hosts: backend
+  roles:
+    - backend
+
+---
+cd roles/frontend/tasks
+mkdir files
+cd files
+vim setupProxy.js
+const { createProxyMiddleware } = require('http-proxy-middleware');
+module.exports = app => {
+  app.use(
+    "/reverser",
+    createProxyMiddleware({
+      target: "http://<backend-pvt-ip>:5000",
+      changeOrigin: true
+    })
+  );
+
+  app.use(
+    "/summation",
+    createProxyMiddleware({
+      target: "http://<backend-pvt-ip>:5000",
+      changeOrigin: true
+    })
+  );
+};
+
+Explanation:
+1.	Import the createProxyMiddleware function from the http-proxy-middleware module.
+2.	Set up proxy middleware for two routes in an Express app (/reverser and /summation).
+3.	Forward requests to these routes to http://backend:5000.
+4.	Modify the origin header to match the target's host (changeOrigin: true).
+
+Now, In the frontend/tasks directory create a main.yaml
+Cd …
+Deployment/roles/frontend/tasks$ vim main.yaml
+vim main.yaml
+- name: Clone the repo for backend
+  git:
+    repo: 'https://github.com/azizulmaqsud/two-tier-app.git'
+    dest: /home/ubuntu/two-tier-app
+    update: yes
+    clone: yes
+  ignore_errors: true
+
+- name: Update the cache
+  become: yes
+  apt:
+    update_cache: yes
+
+- name: Install python and pip
+  become: yes
+  apt:
+    pkg:
+      - python3-pip
+      - python3-venv
+
+- name: Create virtual environment
+  become: yes
+  command: python3 -m venv /home/ubuntu/two-tier-app/backend/env
+  args:
+    creates: /home/ubuntu/two-tier-app/backend/env/bin/activate
+
+- name: Install the requirements
+  become: yes
+  pip:
+    requirements: /home/ubuntu/two-tier-app/backend/requirements.txt
+    virtualenv: /home/ubuntu/two-tier-app/backend/env
+
+# Running Flask using the full path to the binary inside the virtual environment
+- name: Run the backend
+  command: /home/ubuntu/two-tier-app/backend/env/bin/flask run --host 0.0.0.0
+  args:
+    chdir: /home/ubuntu/two-tier-app/backend
+  async: 1000
+  poll: 0
+
+
+ubuntu@ip-172-31-16-67:~/deployment$ 
+ubuntu@ip-172-31-16-67:~/deployment$ cat roles/frontend/tasks/main.yaml
+vim main.yaml
+- name: Clone the repo for frontend
+  git:
+    repo: 'https://github.com/azizulmaqsud/two-tier-app.git'
+    dest: /home/ubuntu/two-tier-app
+    update: yes
+    clone: yes
+  ignore_errors: true
+
+- name: Update the packages
+  become: yes
+  apt:
+    update_cache: yes
+
+- name: Install dependencies for nvm
+  become: yes
+  apt:
+    name:
+      - curl
+      - build-essential
+      - libssl-dev
+
+- name: Install NVM
+  become: no
+  shell: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+  args:
+    creates: /home/ubuntu/.nvm
+
+- name: Install node
+  become: yes
+  shell: . /home/ubuntu/.nvm/nvm.sh && nvm install 16
+  args:
+    executable: /bin/bash
+
+- name: Copy the setupProxy
+  copy:
+    src: /home/ubuntu/deployment/roles/frontend/tasks/files/setupProxy.js
+    dest: /home/ubuntu/two-tier-app/frontend/src/setupProxy.js
+
+
+- name: Install npm dependencies for the frontend
+  become: no  # Run npm as the non-root user
+  shell: |
+    export NVM_DIR="$HOME/.nvm" &&
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" &&
+    npm install
+  args:
+    chdir: /home/ubuntu/two-tier-app/frontend
+    executable: /bin/bash
+
+- name: Run the frontend server
+  become: no  # Ensure the server runs as the non-root user
+  shell: |
+    export NVM_DIR="$HOME/.nvm" &&
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" &&
+    npm start
+  args:
+    chdir: /home/ubuntu/two-tier-app/frontend
+    executable: /bin/bash
+  async: 1000
+  poll: 0
+  register: frontend_check
+
+explanation: 
+1.	Clone Frontend Repository: Clone a specific frontend Git repository, ignoring any errors during the process.
+2.	Refresh Package Index: Update the package index on the target machine using apt.
+3.	Install Node.js and npm: Use apt to install Node.js and npm with elevated privileges.
+4.	Install Project Dependencies: Run npm to install dependencies located in a certain path.
+5.	Copy Proxy Configuration: Transfer a setupProxy.js file to the correct location in the project directory.
+6.	Start Frontend Server: Launch the frontend application using npm start, running asynchronously without continuous checking (polling).
+
+Go back ..
+Cd …/../..
+Deployment$ vim playbook.yaml
+
+- hosts: frontend
+  roles: 
+    - frontend
+- hosts: backend
+  roles: 
+    - backend
+
+ansible-playbook playbook.yaml  -v
+Step 8: Verify the Deployment
+Access the frontend application:
+Open a browser and navigate to http://<frontend-public-ip>:3000.
+Verify the backend is running:
+curl  <backend pvt ip>:5000
+
+Documented By: Azizul Maqsud  
+YouTube Link: https://youtu.be/gy9DN276FSU?si=Xzj91lXUQZdRJY_L 
+Thank you
