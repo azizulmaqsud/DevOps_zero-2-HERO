@@ -2,7 +2,7 @@
 
 Welcome to the DevOps_zero-2-HERO repository! This is designed to take you from the basics of AWS DevOps to an advanced, hands-on level through practical use cases, real-world scenarios, and guided tutorials.
 
-## Introduction
+## Introduction 
 
 In the fast-paced world of cloud computing and DevOps, mastering AWS and its ecosystem is crucial for building scalable, secure, and efficient applications. **DevOps_zero-2-HERO** is a comprehensive learning and implementation journey crafted for aspiring DevOps engineers and cloud professionals. Whether you're just starting or looking to enhance your skills, this project offers a structured approach to learning AWS services, DevOps tools, and automation workflows through step-by-step guides and practical examples.
 
