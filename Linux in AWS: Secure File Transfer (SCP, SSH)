@@ -1,0 +1,110 @@
+Day 2 Day Activities in DevOps & CloudOps 
+Complete AWS DevOps Tutorial with Real-time Troubleshooting & Linux issues solved in the Production-Level
+Table of Contents
+1.	Introduction to AWS & DevOps
+2.	Linux Basics to Advanced (With Troubleshooting)
+3.	Setting Up AWS EC2 Instances (Project Demo)
+4.	Secure File Transfer (SCP, SSH)
+5.	Real-Time DevOps/CloudOps Troubleshooting
+6.	Automation with Shell Scripting
+7.	Project Demo: Deploying a Web App on AWS
+________________________________________
+1. Introduction to AWS & DevOps
+•	What is DevOps?
+DevOps combines Development (Dev) and Operations (Ops) to improve collaboration and automate workflows.
+•	What is CloudOps?
+CloudOps extends DevOps principles to cloud environments (AWS, Azure, GCP).
+•	Why AWS?
+AWS provides scalable, secure, and cost-effective cloud solutions.
+________________________________________
+2. Linux Basics to Advanced (With Troubleshooting)
+Q-1: How to View Linux Accounts, Passwords, Groups & Lists?
+View All Users
+cat /etc/passwd
+•	Output: Lists all users with UID, GID, home dir, and shell.
+View All Groups
+cat /etc/group
+•	Output: Lists all groups with group members.
+Check Current User ID
+id ubuntu
+•	Output: Shows UID, GID, and groups for user ubuntu.
+Search Specific User Details
+grep -i ubuntu /etc/passwd
+•	Output: Filters details for ubuntu user.
+________________________________________
+Q-2: How to Transfer Files Securely in Linux?
+Step 1: Set Up Two AWS EC2 Instances
+•	Server-1 (Public IP: 108.110.1.1)
+•	Server-2 (Public IP: 108.111.1.1)
+Step 2: Connect Using MobaXterm (Windows) / SSH (Linux/Mac)
+ssh -i key.pem ubuntu@108.110.1.1  # Connect to Server-1
+ssh -i key.pem ubuntu@108.111.1.1   # Connect to Server-2
+Step 3: Copy Files Securely (SCP)
+Create file1.txt in server-1
+mkdir file1.txt 
+echo "This is a test file" > file1.txt
+ls  # Verify file1.txt exists
+Copy a file from Server-1 to Server-2:
+scp -i key.pem file1.txt ubuntu@<destination ip>:~/
+•	Copy an entire directory (recursively):
+scp -pr -i ~/default-key.pem azizul ubuntu@<destination ip>:~/
+•	Check SSH Agent (if key not added):
+ssh-add -L  # List keys
+ssh-add key.pem  # Add key if missing
+________________________________________
+3. Setting Up AWS EC2 Instances (Project Demo)
+Step 1: Launch Two EC2 Instances
+1.	Go to AWS Console → EC2 → Launch Instance.
+2.	Select Ubuntu 22.04 LTS.
+3.	Configure Security Group (Allow SSH on Port 22).
+4.	Download key.pem for SSH access.
+Step 2: SSH into EC2
+chmod 400 key.pem  # Secure key permissions
+ssh -i key.pem ubuntu@<public-ip>
+________________________________________
+4. Real-Time DevOps/CloudOps Troubleshooting
+Issue 1: SSH Connection Failed
+•	Error: Permission denied (publickey)
+•	Solution:
+chmod 400 key.pem  # Fix permissions
+ssh -i key.pem -v ubuntu@IP  # Debug connection
+Issue 2: SCP Transfer Fails
+•	Error: No such file or directory
+•	Solution:
+ls -la  # Verify file exists
+scp -i key.pem ./file1.txt ubuntu@IP:~/
+________________________________________
+5. Automation with Shell Scripting
+Example: Auto-Backup Script
+#!/bin/bash
+# Backup script for Server-1 to Server-2
+scp -i key.pem /var/log/*.log ubuntu@108.111.1.1:/backup/
+echo "Backup completed at $(date)" >> /var/log/backup.log
+•	Make it executable:
+chmod +x backup.sh
+./backup.sh
+________________________________________
+6. Project Demo: Deploying a Web App on AWS
+Step 1: Install Nginx on Server-1
+sudo apt update
+sudo apt install nginx -y
+sudo systemctl start nginx
+•	Verify:
+Open http://<public-ip> in browser.
+Step 2: Deploy HTML Page
+sudo nano /var/www/html/index.html
+•	Add:
+<h1>Welcome to AWS DevOps Demo!</h1>
+Step 3: Automate with Ansible (Optional)
+ansible-playbook deploy_web.yml
+________________________________________
+Conclusion
+•	Learned Linux user/group management.
+•	Securely transferred files using SCP/SSH.
+•	Troubleshot SSH & SCP issues.
+•	Automated tasks with Shell Scripting.
+•	Deployed a real-time web app on AWS.
+Next Steps
+•	Learn Docker & Kubernetes for containerization.
+•	Explore AWS CI/CD (CodePipeline, CodeDeploy).
+
