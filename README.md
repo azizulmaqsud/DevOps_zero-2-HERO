@@ -1,6 +1,7 @@
 # DevOps_zero-2-HERO
 
-Welcome to the DevOps_zero-2-HERO repository! This is designed to take you from the basics of AWS DevOps to an advanced, hands-on level through practical use cases, real-world scenarios, and guided tutorials.
+Welcome to the DevOps_zero-2-HERO repository! 
+This is designed to take you from the basics of AWS DevOps to an advanced, hands-on level through practical use cases, real-world scenarios, and guided tutorials.
 
 ## Introduction 
 
